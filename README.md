@@ -125,6 +125,8 @@ src/
 | GET | `/api/appointments/tomorrow` | Agenda de mañana |
 | POST | `/api/appointments/:id/confirm` | Confirmar cita |
 | POST | `/api/appointments/:id/reminder` | Marcar recordatorio enviado |
+| GET | `/api/professionals/me` | Lista los datos del usuario profesional  |
+| PUT | `/api/professionals/me` | Actualiza los datos del usuario profesional |
 | GET | `/api/services/my` | Mis servicios |
 | GET | `/api/schedule/my` | Mi plantilla semanal |
 | PUT | `/api/schedule/day` | Actualizar horario de un día |
