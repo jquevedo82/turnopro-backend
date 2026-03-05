@@ -149,5 +149,9 @@ Ver `.env.example` para la lista completa con descripciones.
 ## Notas de producción
 
 - Cambiar `synchronize: true` a `false` en `app.module.ts` y usar migraciones
+
+## Relacionado
+
+- [turnopro-frontend](https://github.com/jquevedo82/turnopro-frontend) — React - TypeScript - Vite - TailwindCSS
 - Asegurarse de que `JWT_SECRET` sea una clave fuerte y única
 - No commitear el archivo `.env` al repositorio
