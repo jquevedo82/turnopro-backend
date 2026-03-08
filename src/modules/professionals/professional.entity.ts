@@ -44,6 +44,9 @@ export class Professional {
   @Column({ length: 30, nullable: true })
   phone: string;
 
+  @Column({ name: 'whatsapp_phone', length: 30, nullable: true })
+  whatsappPhone: string; // Número donde el médico recibe notificaciones WhatsApp
+
   // ── Perfil público ─────────────────────────────────────────────────────────
   // Todo lo que aparece en la página pública tudominio.com/:slug
 

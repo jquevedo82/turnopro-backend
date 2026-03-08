@@ -9,7 +9,8 @@ import { IsString, IsOptional, IsBoolean, IsInt, IsPositive, Min } from 'class-v
 export class UpdateProfileDto {
   @IsOptional() @IsString() name?:       string;
   @IsOptional() @IsString() profession?: string;
-  @IsOptional() @IsString() phone?:      string;
+  @IsOptional() @IsString() phone?:         string;
+  @IsOptional() @IsString() whatsappPhone?: string;
   @IsOptional() @IsString() slogan?:     string;
   @IsOptional() @IsString() bio?:        string;
   @IsOptional() @IsString() address?:    string;

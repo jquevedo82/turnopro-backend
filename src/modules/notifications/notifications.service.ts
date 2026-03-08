@@ -124,6 +124,39 @@ export class NotificationsService {
     return `https://wa.me/${phone}?text=${message}`;
   }
 
+  /**
+   * Reenvía el email de confirmación al cliente — llamado desde el panel del profesional.
+   * Reutiliza el mismo template de confirmación.
+   */
+  async resendConfirmationToClient(
+    appointment: Appointment,
+    client:       Client,
+    professional: Professional,
+    service:      Service,
+  ): Promise<void> {
+    const managementLink = `${this.appUrl}/cita/${appointment.token}`;
+    const cancelLink     = `${this.appUrl}/cita/${appointment.token}/cancelar`;
+
+    const html = this.buildConfirmationTemplate({
+      clientName:       client.name,
+      professionalName: professional.name,
+      serviceName:      service.name,
+      date:             appointment.date,
+      time:             appointment.startTime,
+      managementLink,
+      cancelLink,
+      isPending:        false,
+    });
+
+    await this.sendEmail({
+      to:      client.email,
+      subject: `Recordatorio: tu cita con ${professional.name} 📅`,
+      html,
+    });
+
+    await this.logNotification(appointment.id, 'email', 'reminder');
+  }
+
   /** Envía email de cancelación al cliente cuando el profesional cancela su cita */
   async sendCancellationNotification(
     appointment: Appointment,
@@ -153,6 +186,48 @@ export class NotificationsService {
   }
 
   /** Método interno para enviar emails. Maneja errores y los registra */
+
+  /**
+   * Envía el link de reserva del profesional a un destinatario.
+   * Usado cuando el médico quiere compartir su página con un paciente por email.
+   */
+  async sendShareLink(options: {
+    toEmail:          string;
+    professionalName: string;
+    slug:             string;
+  }): Promise<void> {
+    const bookingUrl = `${this.appUrl}/${options.slug}`;
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#f9fafb;padding:20px">
+        <div style="background:#0f2342;border-radius:12px 12px 0 0;padding:28px;text-align:center">
+          <h1 style="color:#fff;margin:0;font-size:26px">TurnoPro</h1>
+        </div>
+        <div style="background:#fff;padding:28px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
+          <h2 style="color:#0f2342;margin-top:0">Reservá tu turno online</h2>
+          <p style="color:#6b7280">
+            <strong style="color:#111827">${options.professionalName}</strong> te invita a reservar tu turno
+            de forma rápida y sencilla, sin llamadas ni esperas.
+          </p>
+          <div style="text-align:center;margin:28px 0">
+            <a href="${bookingUrl}"
+               style="background:#2563eb;color:#fff;padding:14px 32px;border-radius:10px;
+                      text-decoration:none;font-weight:bold;font-size:16px;display:inline-block">
+              Reservar mi turno →
+            </a>
+          </div>
+          <p style="color:#9ca3af;font-size:13px;text-align:center">
+            O copiá este link: <a href="${bookingUrl}" style="color:#2563eb">${bookingUrl}</a>
+          </p>
+        </div>
+      </div>
+    `;
+    await this.sendEmail({
+      to:      options.toEmail,
+      subject: `Reservá tu turno con ${options.professionalName}`,
+      html,
+    });
+  }
+
   private async sendEmail(options: { to: string; subject: string; html: string }): Promise<void> {
     try {
       await this.transporter.sendMail({

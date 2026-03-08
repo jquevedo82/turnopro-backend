@@ -18,6 +18,7 @@ import {
   UseGuards, ParseIntPipe,
 } from '@nestjs/common';
 import { ProfessionalsService }   from './professionals.service';
+import { NotificationsService }   from '../notifications/notifications.service';
 import { CreateProfessionalDto }  from './dto/create-professional.dto';
 import { UpdateProfileDto }       from './dto/update-profile.dto';
 import { JwtAuthGuard }           from '../../common/guards/jwt-auth.guard';
@@ -31,9 +32,32 @@ import { JwtPayload, getProfessionalId } from '../auth/jwt.strategy';
 @Controller('professionals')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ProfessionalsController {
-  constructor(private readonly svc: ProfessionalsService) {}
+  constructor(
+    private readonly svc: ProfessionalsService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   // ── Ruta /me ANTES de /:id para que Express no la interprete como id="me" ──
+
+  /**
+   * POST /api/professionals/share-link
+   * El profesional envía su link de reserva a un email.
+   * Ruta sin :id para evitar conflicto con ParseIntPipe.
+   */
+  @Post('share-link')
+  @Roles(Role.PROFESSIONAL)
+  async shareLink(
+    @CurrentUser() user: JwtPayload,
+    @Body('email') email: string,
+  ) {
+    const professional = await this.svc.findOne(getProfessionalId(user));
+    await this.notificationsService.sendShareLink({
+      toEmail:          email,
+      professionalName: professional.name,
+      slug:             professional.slug,
+    });
+    return { message: 'Email enviado correctamente' };
+  }
 
   /** Profesional autenticado ve su propio perfil */
   @Get('me')

@@ -75,10 +75,16 @@ export class AppointmentsService {
 
   async confirm(id: number, professionalId: number): Promise<Appointment> {
     const appt = await this.findOneByProfessional(id, professionalId);
-    if (appt.status !== AppointmentStatus.PENDING) {
-      throw new BadRequestException('Solo se pueden confirmar citas en estado PENDIENTE');
+    // Permite confirmar desde PENDING o RECONFIRMED (el cliente confirmó antes que el médico)
+    const confirmableStatuses = [AppointmentStatus.PENDING, AppointmentStatus.RECONFIRMED];
+    if (!confirmableStatuses.includes(appt.status)) {
+      throw new BadRequestException('Solo se pueden confirmar citas en estado PENDIENTE o RECONFIRMADA');
     }
-    await this.repo.update(id, { status: AppointmentStatus.CONFIRMED });
+    // Si el cliente ya reconfirmó, mantener RECONFIRMED; si no, pasar a CONFIRMED
+    const newStatus = appt.status === AppointmentStatus.RECONFIRMED
+      ? AppointmentStatus.RECONFIRMED
+      : AppointmentStatus.CONFIRMED;
+    await this.repo.update(id, { status: newStatus });
     return this.findById(id);
   }
 
@@ -117,7 +123,9 @@ export class AppointmentsService {
     const appt = await this.repo.findOne({ where: { token } });
     if (!appt) throw new NotFoundException('Cita no encontrada');
     if (appt.status === AppointmentStatus.RECONFIRMED) return appt;
-    if (appt.status !== AppointmentStatus.CONFIRMED) {
+    // Permitir reconfirmar desde PENDING (autoConfirm=false) o CONFIRMED
+    const reconfirmableStatuses = [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED];
+    if (!reconfirmableStatuses.includes(appt.status)) {
       throw new BadRequestException('La cita no puede ser reconfirmada en su estado actual');
     }
     await this.repo.update(appt.id, {
@@ -171,16 +179,31 @@ export class AppointmentsService {
     return this.findById(id);
   }
 
-  /** Expira citas PENDING sin acción — se ejecuta cada hora */
+  /**
+   * Expira citas PENDING sin acción — se ejecuta cada hora.
+   *
+   * LÓGICA CORRECTA:
+   * Una cita expira cuando su fecha+hora ya pasó hace más de PENDING_EXPIRY_HOURS
+   * (calculado sobre la fecha del turno, NO sobre cuándo se creó).
+   *
+   * Ejemplo: turno el jueves a las 10:00 con PENDING_EXPIRY_HOURS=2
+   *   → expira el jueves a las 12:00 si sigue PENDING
+   *   → NO expira el martes cuando se creó la reserva
+   */
   @Cron(CronExpression.EVERY_HOUR)
   async expirePendingAppointments(): Promise<void> {
     const expiryHours = parseInt(process.env.PENDING_EXPIRY_HOURS ?? '2', 10);
-    const expiryTime  = new Date(Date.now() - expiryHours * 60 * 60 * 1000);
 
+    // Buscar citas PENDING cuya fecha+hora ya pasó hace más de expiryHours
+    const now = new Date();
     const expired = await this.repo
       .createQueryBuilder('a')
       .where('a.status = :status', { status: AppointmentStatus.PENDING })
-      .andWhere('a.createdAt < :expiryTime', { expiryTime })
+      // Comparar fecha del turno + startTime con la hora actual
+      .andWhere(
+        `TIMESTAMPADD(HOUR, :expiryHours, STR_TO_DATE(CONCAT(a.date, ' ', a.startTime), '%Y-%m-%d %H:%i')) < :now`,
+        { expiryHours, now }
+      )
       .getMany();
 
     if (expired.length > 0) {

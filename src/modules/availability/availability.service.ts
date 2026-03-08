@@ -97,12 +97,14 @@ export class AvailabilityService {
           AppointmentStatus.PENDING,
           AppointmentStatus.CONFIRMED,
           AppointmentStatus.RECONFIRMED,
+          AppointmentStatus.COMPLETED,  // completada sigue ocupando el slot
         ],
       })
       .select(['a.startTime'])
       .getMany();
 
-    const occupiedTimes = new Set(occupiedAppointments.map((a) => a.startTime));
+    // MySQL type:'time' devuelve 'HH:mm:ss' — normalizar a 'HH:mm' para comparar
+    const occupiedTimes = new Set(occupiedAppointments.map((a) => a.startTime.substring(0, 5)));
 
     // ── Filtrar slots ocupados y pasados ──────────────────────────────────
     const available = allSlots.filter((slot) => {
