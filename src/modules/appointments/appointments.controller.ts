@@ -87,6 +87,14 @@ export class AppointmentsController {
     return this.svc.markReminderSent(id, getProfessionalId(user));
   }
 
+  /** Reenvía el email de confirmación al paciente desde el panel del profesional */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROFESSIONAL)
+  @Post(':id/resend-email')
+  resendEmail(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+    return this.svc.resendEmailToClient(id, getProfessionalId(user));
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.PROFESSIONAL)
   @Post(':id/cancel')

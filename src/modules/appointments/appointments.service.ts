@@ -70,6 +70,8 @@ export class AppointmentsService {
     }));
 
     await this.notificationsService.sendAppointmentConfirmation(appointment, client, professional, service);
+    // Notificar al médico que llegó una nueva reserva
+    await this.notificationsService.notifyProfessionalNewAppointment(appointment, client, professional, service);
     return appointment;
   }
 
@@ -85,6 +87,12 @@ export class AppointmentsService {
       ? AppointmentStatus.RECONFIRMED
       : AppointmentStatus.CONFIRMED;
     await this.repo.update(id, { status: newStatus });
+    // Notificar al paciente que su cita fue confirmada por el médico
+    const confirmed = await this.repo.findOne({ where: { id }, relations: ['client', 'service'] });
+    if (confirmed) {
+      const prof = await this.professionalsService.findOne(professionalId);
+      await this.notificationsService.notifyClientAppointmentConfirmed(confirmed, confirmed.client, prof, confirmed.service);
+    }
     return this.findById(id);
   }
 
@@ -116,6 +124,11 @@ export class AppointmentsService {
     }
 
     await this.repo.update(id, { status: AppointmentStatus.CANCELLED, cancelledBy });
+    // Notificar al paciente que la cita fue cancelada
+    const cancelled = await this.repo.findOne({ where: { id }, relations: ['client', 'service', 'professional'] });
+    if (cancelled) {
+      await this.notificationsService.notifyClientCancellation(cancelled, cancelled.client, cancelled.professional, cancelledBy);
+    }
     return this.findById(id);
   }
 
@@ -133,7 +146,12 @@ export class AppointmentsService {
       reconfirmedAt: new Date(),
       reconfirmedBy: by,
     });
-    return this.repo.findOne({ where: { token }, relations: ['client', 'service', 'professional'] }) as Promise<Appointment>;
+    const updated = await this.repo.findOne({ where: { token }, relations: ['client', 'service', 'professional'] }) as Appointment;
+    // Notificar al médico que el paciente confirmó asistencia
+    if (updated && by === 'client') {
+      await this.notificationsService.notifyProfessionalClientReconfirmed(updated, updated.client, updated.professional, updated.service);
+    }
+    return updated;
   }
 
   async findByToken(token: string): Promise<Appointment> {
@@ -164,6 +182,17 @@ export class AppointmentsService {
     });
   }
 
+  async resendEmailToClient(id: number, professionalId: number): Promise<{ message: string }> {
+    const appt = await this.repo.findOne({
+      where: { id, professionalId },
+      relations: ['client', 'service'],
+    });
+    if (!appt) throw new NotFoundException('Cita no encontrada');
+    const professional = await this.professionalsService.findOne(professionalId);
+    await this.notificationsService.resendConfirmationToClient(appt, appt.client, professional, appt.service);
+    return { message: 'Email enviado correctamente' };
+  }
+
   async markReminderSent(id: number, professionalId: number): Promise<Appointment> {
     await this.findOneByProfessional(id, professionalId);
     await this.repo.update(id, { reminderSent: true });
@@ -176,6 +205,12 @@ export class AppointmentsService {
       throw new BadRequestException('Solo se pueden completar citas confirmadas o reconfirmadas');
     }
     await this.repo.update(id, { status: AppointmentStatus.COMPLETED });
+    // Enviar email de gracias + rebooking al paciente
+    const completed = await this.repo.findOne({ where: { id }, relations: ['client'] });
+    if (completed) {
+      const prof = await this.professionalsService.findOne(professionalId);
+      await this.notificationsService.notifyClientAppointmentCompleted(completed, completed.client, prof);
+    }
     return this.findById(id);
   }
 
@@ -215,6 +250,40 @@ export class AppointmentsService {
         .execute();
       console.log(`[Cron] ${expired.length} citas PENDING expiradas`);
     }
+  }
+
+
+  /**
+   * Cron: corre todos los días a las 20:00.
+   * Busca citas de mañana que sean CONFIRMED o RECONFIRMED y no tengan reminderSent,
+   * les manda email automático al paciente y marca reminderSent=true.
+   */
+  @Cron('0 20 * * *') // Todos los días a las 20:00hs
+  async sendAutomaticReminders(): Promise<void> {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+    const appts = await this.repo.find({
+      where: [
+        { date: tomorrowStr, status: AppointmentStatus.CONFIRMED,   reminderSent: false },
+        { date: tomorrowStr, status: AppointmentStatus.RECONFIRMED, reminderSent: false },
+      ],
+      relations: ['client', 'service'],
+    });
+
+    let sent = 0;
+    for (const appt of appts) {
+      try {
+        const professional = await this.professionalsService.findOne(appt.professionalId);
+        await this.notificationsService.sendAutomaticReminder(appt, appt.client, professional, appt.service);
+        await this.repo.update(appt.id, { reminderSent: true });
+        sent++;
+      } catch (err) {
+        console.error(`[Cron reminder] Error en cita ${appt.id}: ${err.message}`);
+      }
+    }
+    if (sent > 0) console.log(`[Cron] ${sent} recordatorios automáticos enviados para ${tomorrowStr}`);
   }
 
   // ── Helpers privados ──────────────────────────────────────────────────────
