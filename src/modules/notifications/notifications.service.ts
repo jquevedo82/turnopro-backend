@@ -365,6 +365,56 @@ export class NotificationsService {
     } catch (err) {
       this.logger.error(`Error notificando cancelación al cliente: ${err.message}`);
     }
+
+    // Notificar al médico solo si canceló el paciente
+    if (cancelledBy === 'client') {
+      const clientWaPhone = (client.phone || '').replace(/[^0-9+]/g, '');
+      const clientWaBtn   = clientWaPhone
+        ? `<a href="https://wa.me/${clientWaPhone}?text=${encodeURIComponent('Hola ' + client.name + ', vi que cancelaste tu cita del ' + appointment.date + ' a las ' + appointment.startTime + 'hs. ¿Querés reagendarla?')}"
+               style="display:block;background:#25d366;color:#fff;padding:11px;border-radius:8px;text-decoration:none;text-align:center;margin-top:10px;font-weight:bold;">
+              💬 Escribir al paciente por WhatsApp
+            </a>`
+        : '';
+      const panelUrl  = `${this.appUrl}/panel`;
+      const proHtml   = `
+        <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#f9fafb;padding:20px">
+          <div style="background:#0f2342;border-radius:12px 12px 0 0;padding:24px;text-align:center">
+            <h1 style="color:#fff;margin:0;font-size:22px">❌ Cita cancelada por el paciente</h1>
+          </div>
+          <div style="background:#fff;padding:28px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
+            <p>Hola <strong>${professional.name}</strong>,</p>
+            <p><strong>${client.name}</strong> canceló su cita.</p>
+            <table style="width:100%;border-collapse:collapse;margin:16px 0">
+              <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280;width:40%">👤 Paciente</td>
+                  <td style="padding:10px;border-bottom:1px solid #f3f4f6;font-weight:600">${client.name}</td></tr>
+              <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">📱 Teléfono</td>
+                  <td style="padding:10px;border-bottom:1px solid #f3f4f6">${client.phone}</td></tr>
+              <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">🩺 Servicio</td>
+                  <td style="padding:10px;border-bottom:1px solid #f3f4f6">${appointment.service?.name ?? ''}</td></tr>
+              <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">📅 Fecha</td>
+                  <td style="padding:10px;border-bottom:1px solid #f3f4f6">${appointment.date}</td></tr>
+              <tr><td style="padding:10px;color:#6b7280">⏰ Hora</td>
+                  <td style="padding:10px;font-weight:600">${appointment.startTime}hs</td></tr>
+            </table>
+            ${clientWaBtn}
+            <a href="${panelUrl}"
+               style="display:block;background:#2563eb;color:#fff;padding:12px;border-radius:8px;text-decoration:none;text-align:center;font-weight:bold;margin-top:10px">
+              Ver mi panel →
+            </a>
+          </div>
+        </div>
+      `;
+      try {
+        await this.sendEmail({
+          to:      professional.publicEmail || professional.email,
+          subject: `❌ ${client.name} canceló su cita del ${appointment.date}`,
+          html:    proHtml,
+        });
+        await this.logNotification(appointment.id, 'email', 'cancelled_notify_pro');
+      } catch (err) {
+        this.logger.error(`Error notificando cancelación al profesional: ${err.message}`);
+      }
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════

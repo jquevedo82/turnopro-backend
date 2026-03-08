@@ -176,7 +176,13 @@ export class AppointmentsService {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
     return this.repo.find({
-      where: { professionalId, date: tomorrowStr, status: AppointmentStatus.CONFIRMED },
+      where: [
+        { professionalId, date: tomorrowStr, status: AppointmentStatus.CONFIRMED },
+        { professionalId, date: tomorrowStr, status: AppointmentStatus.RECONFIRMED },
+        { professionalId, date: tomorrowStr, status: AppointmentStatus.PENDING },
+        { professionalId, date: tomorrowStr, status: AppointmentStatus.COMPLETED },
+        { professionalId, date: tomorrowStr, status: AppointmentStatus.CANCELLED },
+      ],
       relations: ['client', 'service'],
       order: { startTime: 'ASC' },
     });
