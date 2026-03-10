@@ -76,6 +76,7 @@ import { NotificationLog }     from './modules/notifications/notification-log.en
       synchronize: process.env.NODE_ENV !== 'production',
       logging: process.env.NODE_ENV === 'development',
       charset: 'utf8mb4', // Soporta emojis y caracteres especiales
+      ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
     }),
 
     // ── Scheduler para tareas cron ───────────────────────────────────────────
