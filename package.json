@@ -1,7 +1,7 @@
 {
   "name": "turnopro-backend",
   "version": "1.0.0",
-  "description": "Backend del sistema TurnoPro — Gestión de citas multi-profesional",
+  "description": "Backend del sistema TurnoPro \u2014 Gesti\u00f3n de citas multi-profesional",
   "author": "TurnoPro Dev Team",
   "private": true,
   "license": "UNLICENSED",
@@ -18,14 +18,14 @@
     "migration:generate": "npm run typeorm -- migration:generate src/database/migrations/$npm_config_name",
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
-    "seed": "ts-node src/database/seeds/run-seeds.ts"
+    "seed": "ts-node src/database/seeds/run-seeds.ts",
+    "start:prod": "node dist/main"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
     "@nestjs/config": "^3.0.0",
     "@nestjs/core": "^10.0.0",
     "@nestjs/jwt": "^10.1.0",
-    "@nestjs/mapped-types": "^2.1.0",
     "@nestjs/passport": "^10.0.0",
     "@nestjs/platform-express": "^10.0.0",
     "@nestjs/schedule": "^3.0.0",
