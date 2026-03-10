@@ -76,6 +76,20 @@ export class ProfessionalsController {
     return this.svc.update(getProfessionalId(user), dto);
   }
 
+  /**
+   * POST /api/professionals/change-password
+   * El profesional cambia su propia contraseña validando la actual.
+   */
+  @Post('change-password')
+  @Roles(Role.PROFESSIONAL)
+  async changePassword(
+    @CurrentUser() user: JwtPayload,
+    @Body('currentPassword') currentPassword: string,
+    @Body('newPassword')     newPassword:     string,
+  ) {
+    return this.svc.changePassword(getProfessionalId(user), currentPassword, newPassword);
+  }
+
   // ── Superadmin ────────────────────────────────────────────────────────────
 
   @Get()

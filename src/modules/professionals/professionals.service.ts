@@ -11,7 +11,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 import {
-  Injectable, ConflictException, NotFoundException,
+  Injectable, ConflictException, NotFoundException, BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository }       from 'typeorm';
@@ -113,5 +113,20 @@ export class ProfessionalsService {
   async deactivate(id: number): Promise<Professional> {
     await this.repo.update(id, { isActive: false });
     return this.findOne(id);
+  }
+
+  async changePassword(id: number, currentPassword: string, newPassword: string) {
+    const prof = await this.repo.findOne({ where: { id } });
+    if (!prof) throw new NotFoundException('Profesional no encontrado');
+
+    const valid = await bcrypt.compare(currentPassword, prof.password);
+    if (!valid) throw new BadRequestException('La contraseña actual es incorrecta');
+
+    if (!newPassword || newPassword.length < 6)
+      throw new BadRequestException('La nueva contraseña debe tener al menos 6 caracteres');
+
+    prof.password = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    await this.repo.save(prof);
+    return { message: 'Contraseña actualizada correctamente' };
   }
 }
