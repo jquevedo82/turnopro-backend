@@ -709,7 +709,7 @@ export class NotificationsService {
       } else {
         // ── Nodemailer SMTP (local con Gmail) ─────────────────────────────────
         await this.transporter.sendMail({
-          from: process.env.MAIL_FROM || 'TurnoPro <noreply@turnopro.com>',
+          from: process.env.MAIL_FROM || 'TurnoPro <tuturno@gmail.com>',
           ...options,
         });
         this.logger.log(`Email enviado via SMTP a ${options.to}: ${options.subject}`);
