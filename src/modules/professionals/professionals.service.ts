@@ -16,6 +16,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository }       from 'typeorm';
 import * as bcrypt          from 'bcrypt';
+import * as crypto          from 'crypto';
 import { Professional }     from './professional.entity';
 import { CreateProfessionalDto }  from './dto/create-professional.dto';
 import { NotificationsService }   from '../notifications/notifications.service';
@@ -70,8 +71,9 @@ export class ProfessionalsService {
       throw new ConflictException('El email o slug ya está en uso');
     }
 
-    // Hashear la contraseña con bcrypt
-    const hashedPassword = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    // Usar la contraseña enviada o generar una aleatoria (el profesional la configura desde el email)
+    const rawPassword    = dto.password || crypto.randomBytes(16).toString('hex');
+    const hashedPassword = await bcrypt.hash(rawPassword, BCRYPT_ROUNDS);
 
     const professional = this.repo.create({
       ...dto,
@@ -80,12 +82,20 @@ export class ProfessionalsService {
 
     const saved = await this.repo.save(professional);
 
-    // Enviar email de bienvenida con credenciales (no await para no bloquear la respuesta)
+    // Generar token de configuración de contraseña (expira en 24hs)
+    const resetToken  = crypto.randomBytes(32).toString('hex');
+    const resetExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await this.repo.update(saved.id, {
+      resetToken,
+      resetTokenExpiry: resetExpiry,
+    });
+
+    // Enviar email de bienvenida con link para configurar contraseña
     this.notifications.sendWelcomeProfessional({
       toEmail:          saved.email,
       professionalName: saved.name,
       email:            saved.email,
-      password:         dto.password, // contraseña en texto plano antes del hash
+      resetToken,
       slug:             saved.slug,
     }).catch(err => console.error('Error enviando email de bienvenida:', err?.message || err?.code || JSON.stringify(err)));
 
