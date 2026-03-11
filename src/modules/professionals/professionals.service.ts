@@ -71,8 +71,8 @@ export class ProfessionalsService {
       throw new ConflictException('El email o slug ya está en uso');
     }
 
-    // Usar la contraseña enviada o generar una aleatoria (el profesional la configura desde el email)
-    const rawPassword    = dto.password || crypto.randomBytes(16).toString('hex');
+    // Contraseña inicial fija: 'turnopro' — el profesional la cambia en su primer ingreso
+    const rawPassword    = dto.password || 'turnopro';
     const hashedPassword = await bcrypt.hash(rawPassword, BCRYPT_ROUNDS);
 
     const professional = this.repo.create({
@@ -91,13 +91,24 @@ export class ProfessionalsService {
     });
 
     // Enviar email de bienvenida con link para configurar contraseña
-    this.notifications.sendWelcomeProfessional({
-      toEmail:          saved.email,
-      professionalName: saved.name,
-      email:            saved.email,
-      resetToken,
-      slug:             saved.slug,
-    }).catch(err => console.error('Error enviando email de bienvenida:', err?.message || err?.code || JSON.stringify(err)));
+    try {
+      await this.notifications.sendWelcomeProfessional({
+        toEmail:          saved.email,
+        professionalName: saved.name,
+        email:            saved.email,
+        resetToken,
+        slug:             saved.slug,
+      });
+      console.log('Email de bienvenida enviado a:', saved.email);
+    } catch (err: any) {
+      console.error('=== ERROR EMAIL BIENVENIDA ===');
+      console.error('Destinatario:', saved.email);
+      console.error('Mensaje:', err?.message);
+      console.error('Código:', err?.code);
+      console.error('Response:', err?.response);
+      console.error('Stack:', err?.stack);
+      console.error('==============================');
+    }
 
     return saved;
   }

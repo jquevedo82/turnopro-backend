@@ -9,7 +9,7 @@
  *   Agregar @Post('refresh') con su lógica en auth.service.ts
  * ─────────────────────────────────────────────────────────────────────────────
  */
-import { Controller, Post, Body, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Body, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto }    from './dto/login.dto';
 import { Public }      from '../../common/decorators/public.decorator';
@@ -58,5 +58,21 @@ export class AuthController {
     if (!token || !newPassword) throw new BadRequestException('Token y contraseña son requeridos');
     await this.authService.resetPassword(token, newPassword);
     return { message: 'Contraseña actualizada correctamente' };
+  }
+
+  /** GET /api/auth/mail-check — diagnóstico temporal, eliminar después */
+  @Public()
+  @Get('mail-check')
+  mailCheck() {
+    const pass = process.env.MAIL_PASS || '';
+    return {
+      host:     process.env.MAIL_HOST,
+      port:     process.env.MAIL_PORT,
+      user:     process.env.MAIL_USER,
+      passLen:  pass.length,
+      passHint: pass.substring(0, 4) + '...' + pass.substring(pass.length - 4),
+      from:     process.env.MAIL_FROM,
+      appUrl:   process.env.APP_URL,
+    };
   }
 }
