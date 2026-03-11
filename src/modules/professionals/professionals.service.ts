@@ -87,7 +87,7 @@ export class ProfessionalsService {
       email:            saved.email,
       password:         dto.password, // contraseña en texto plano antes del hash
       slug:             saved.slug,
-    }).catch(err => console.error('Error enviando email de bienvenida:', err));
+    }).catch(err => console.error('Error enviando email de bienvenida:', err?.message || err?.code || JSON.stringify(err)));
 
     return saved;
   }
