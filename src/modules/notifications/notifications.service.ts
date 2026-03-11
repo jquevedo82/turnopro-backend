@@ -41,10 +41,12 @@ export class NotificationsService {
     // ── Configurar transporte de email ────────────────────────────────────
     // Para cambiar a otro proveedor: reemplazar este objeto de configuración
     // Para Gmail: activar "Contraseñas de aplicación" en la cuenta Google
+    // Transporter de Nodemailer como fallback (funciona en local con Gmail)
+    // En producción se usa Resend API directamente via HTTP (ver sendEmail)
     this.transporter = nodemailer.createTransport({
       host:   process.env.MAIL_HOST || 'smtp.gmail.com',
       port:   parseInt(process.env.MAIL_PORT || '587'),
-      secure: false, // true para puerto 465, false para otros
+      secure: false,
       auth: {
         user: process.env.MAIL_USER,
         pass: process.env.MAIL_PASS,
@@ -680,15 +682,39 @@ export class NotificationsService {
   }
 
   private async sendEmail(options: { to: string; subject: string; html: string }): Promise<void> {
+    const resendKey = process.env.RESEND_API_KEY;
+
     try {
-      await this.transporter.sendMail({
-        from: process.env.MAIL_FROM || '"TurnoPro" <noreply@turnopro.com>',
-        ...options,
-      });
-      this.logger.log(`Email enviado a ${options.to}: ${options.subject}`);
+      if (resendKey) {
+        // ── Resend API HTTP (producción — Render no bloquea puerto 443) ──────
+        const from = process.env.MAIL_FROM || 'TurnoPro <onboarding@resend.dev>';
+        const res  = await fetch('https://api.resend.com/emails', {
+          method:  'POST',
+          headers: {
+            'Authorization': `Bearer ${resendKey}`,
+            'Content-Type':  'application/json',
+          },
+          body: JSON.stringify({
+            from,
+            to:      [options.to],
+            subject: options.subject,
+            html:    options.html,
+          }),
+        });
+        if (!res.ok) {
+          const body = await res.text();
+          throw new Error(`Resend API error ${res.status}: ${body}`);
+        }
+        this.logger.log(`Email enviado via Resend a ${options.to}: ${options.subject}`);
+      } else {
+        // ── Nodemailer SMTP (local con Gmail) ─────────────────────────────────
+        await this.transporter.sendMail({
+          from: process.env.MAIL_FROM || 'TurnoPro <noreply@turnopro.com>',
+          ...options,
+        });
+        this.logger.log(`Email enviado via SMTP a ${options.to}: ${options.subject}`);
+      }
     } catch (error) {
-      // En fase 1 solo logueamos el error, no bloqueamos la cita
-      // Para manejo más estricto: relanzar el error aquí
       this.logger.error(`Error enviando email a ${options.to}:`, error.message);
     }
   }
