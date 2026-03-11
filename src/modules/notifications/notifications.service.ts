@@ -577,6 +577,76 @@ export class NotificationsService {
     });
   }
 
+  async sendWelcomeProfessional(options: {
+    toEmail:          string;
+    professionalName: string;
+    email:            string;
+    password:         string;
+    slug:             string;
+  }): Promise<void> {
+    const panelUrl   = `${this.appUrl}/login`;
+    const bookingUrl = `${this.appUrl}/${options.slug}`;
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#f9fafb;padding:20px">
+        <div style="background:#0f2342;border-radius:12px 12px 0 0;padding:28px;text-align:center">
+          <h1 style="color:#fff;margin:0;font-size:26px">TurnoPro</h1>
+          <p style="color:#93c5fd;margin:6px 0 0;font-size:14px">Sistema de gestión de citas</p>
+        </div>
+        <div style="background:#fff;padding:32px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
+          <h2 style="color:#0f2342;margin-top:0">¡Bienvenido/a, ${options.professionalName}! 👋</h2>
+          <p style="color:#4b5563">
+            Tu cuenta en TurnoPro fue creada correctamente. A partir de ahora podés gestionar
+            tus citas, configurar tu agenda y compartir tu página de reservas con tus pacientes.
+          </p>
+
+          <div style="background:#eff6ff;border-radius:10px;padding:20px;margin:24px 0;border:1px solid #bfdbfe">
+            <p style="color:#1e40af;font-weight:bold;margin:0 0 12px;font-size:14px">🔑 Tus credenciales de acceso</p>
+            <table style="width:100%;font-size:14px;color:#374151">
+              <tr>
+                <td style="padding:4px 0;color:#6b7280;width:100px">Email:</td>
+                <td style="padding:4px 0;font-weight:bold">${options.email}</td>
+              </tr>
+              <tr>
+                <td style="padding:4px 0;color:#6b7280">Contraseña:</td>
+                <td style="padding:4px 0;font-weight:bold;font-family:monospace;font-size:15px">${options.password}</td>
+              </tr>
+            </table>
+          </div>
+
+          <div style="text-align:center;margin:28px 0">
+            <a href="${panelUrl}"
+               style="background:#2563eb;color:#fff;padding:14px 32px;border-radius:10px;
+                      text-decoration:none;font-weight:bold;font-size:16px;display:inline-block">
+              Ingresar al panel →
+            </a>
+          </div>
+
+          <div style="background:#f0fdf4;border-radius:10px;padding:16px;margin:20px 0;border:1px solid #bbf7d0">
+            <p style="color:#166534;font-size:13px;margin:0">
+              🌐 <strong>Tu página de reservas:</strong><br/>
+              <a href="${bookingUrl}" style="color:#16a34a">${bookingUrl}</a><br/>
+              <span style="color:#4b5563">Compartila con tus pacientes para que reserven online.</span>
+            </p>
+          </div>
+
+          <p style="color:#f59e0b;font-size:13px;background:#fffbeb;padding:12px 16px;border-radius:8px;border:1px solid #fde68a">
+            ⚠️ Por seguridad, te recomendamos cambiar tu contraseña en la primera sesión
+            desde <strong>Panel → Perfil → Cambiar contraseña</strong>.
+          </p>
+
+          <p style="color:#9ca3af;font-size:12px;text-align:center;margin-top:28px;border-top:1px solid #f3f4f6;padding-top:16px">
+            TurnoPro — Tu turno en un clic
+          </p>
+        </div>
+      </div>
+    `;
+    await this.sendEmail({
+      to:      options.toEmail,
+      subject: `Bienvenido/a a TurnoPro — Tus credenciales de acceso`,
+      html,
+    });
+  }
+
   private async sendEmail(options: { to: string; subject: string; html: string }): Promise<void> {
     try {
       await this.transporter.sendMail({

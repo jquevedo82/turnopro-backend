@@ -17,7 +17,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository }       from 'typeorm';
 import * as bcrypt          from 'bcrypt';
 import { Professional }     from './professional.entity';
-import { CreateProfessionalDto } from './dto/create-professional.dto';
+import { CreateProfessionalDto }  from './dto/create-professional.dto';
+import { NotificationsService }   from '../notifications/notifications.service';
 
 // Rondas de salt para bcrypt. A mayor número, más seguro pero más lento.
 // Para cambiar: modificar este valor. Recomendado entre 10 y 12.
@@ -27,7 +28,8 @@ const BCRYPT_ROUNDS = 10;
 export class ProfessionalsService {
   constructor(
     @InjectRepository(Professional)
-    private readonly repo: Repository<Professional>,
+    private readonly repo:          Repository<Professional>,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Retorna todos los profesionales con su plan. Para filtrar activos: agregar where: { isActive: true } */
@@ -76,7 +78,18 @@ export class ProfessionalsService {
       password: hashedPassword,
     });
 
-    return this.repo.save(professional);
+    const saved = await this.repo.save(professional);
+
+    // Enviar email de bienvenida con credenciales (no await para no bloquear la respuesta)
+    this.notifications.sendWelcomeProfessional({
+      toEmail:          saved.email,
+      professionalName: saved.name,
+      email:            saved.email,
+      password:         dto.password, // contraseña en texto plano antes del hash
+      slug:             saved.slug,
+    }).catch(err => console.error('Error enviando email de bienvenida:', err));
+
+    return saved;
   }
 
   /** Actualiza datos del profesional. Para campos restringidos: agregar validaciones aquí. */
