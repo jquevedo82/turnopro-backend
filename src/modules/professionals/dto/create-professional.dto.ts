@@ -25,10 +25,12 @@ export class CreateProfessionalDto {
   @IsEmail({}, { message: 'El email no es válido' })
   email: string;
 
-  // Contraseña inicial. El profesional puede cambiarla después
+  // Contraseña temporal — si no se envía, el sistema genera una aleatoria.
+  // El profesional configura la suya desde el email de bienvenida.
   @IsString()
+  @IsOptional()
   @MinLength(8, { message: 'La contraseña debe tener al menos 8 caracteres' })
-  password: string;
+  password?: string;
 
   @IsString()
   profession: string;
