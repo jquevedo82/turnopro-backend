@@ -51,6 +51,9 @@ export class NotificationsService {
         user: process.env.MAIL_USER,
         pass: process.env.MAIL_PASS,
       },
+      tls: {
+        rejectUnauthorized: false,
+      },
     });
   }
 
@@ -709,7 +712,7 @@ export class NotificationsService {
       } else {
         // ── Nodemailer SMTP (local con Gmail) ─────────────────────────────────
         await this.transporter.sendMail({
-          from: process.env.MAIL_FROM || 'TurnoPro <tuturno@gmail.com>',
+          from: process.env.MAIL_FROM || 'TurnoPro <noreply@turnopro.com>',
           ...options,
         });
         this.logger.log(`Email enviado via SMTP a ${options.to}: ${options.subject}`);
