@@ -137,6 +137,13 @@ export class Professional {
   @Column({ name: 'pending_expiry_hours', default: 2 })
   pendingExpiryHours: number;
 
+  // ── Recuperación de contraseña ────────────────────────────────────────────
+  @Column({ name: 'reset_token', length: 100, nullable: true })
+  resetToken: string;
+
+  @Column({ name: 'reset_token_expiry', type: 'datetime', nullable: true })
+  resetTokenExpiry: Date;
+
   // ── Timestamps ─────────────────────────────────────────────────────────────
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

@@ -9,7 +9,7 @@
  *   Agregar @Post('refresh') con su lógica en auth.service.ts
  * ─────────────────────────────────────────────────────────────────────────────
  */
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto }    from './dto/login.dto';
 import { Public }      from '../../common/decorators/public.decorator';
@@ -28,5 +28,35 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  /**
+   * POST /api/auth/forgot-password
+   * Recibe un email y envía el link de recuperación. Siempre responde 200
+   * para no revelar si el email existe en el sistema.
+   */
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body('email') email: string) {
+    if (!email) throw new BadRequestException('El email es requerido');
+    await this.authService.forgotPassword(email);
+    return { message: 'Si el email existe, recibirás un link para restablecer tu contraseña' };
+  }
+
+  /**
+   * POST /api/auth/reset-password
+   * Recibe el token del email y la nueva contraseña.
+   */
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(
+    @Body('token')       token:       string,
+    @Body('newPassword') newPassword: string,
+  ) {
+    if (!token || !newPassword) throw new BadRequestException('Token y contraseña son requeridos');
+    await this.authService.resetPassword(token, newPassword);
+    return { message: 'Contraseña actualizada correctamente' };
   }
 }

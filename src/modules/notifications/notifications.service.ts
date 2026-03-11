@@ -577,6 +577,48 @@ export class NotificationsService {
     });
   }
 
+  async sendPasswordReset(options: {
+    toEmail: string;
+    name:    string;
+    token:   string;
+  }): Promise<void> {
+    const resetUrl = `${this.appUrl}/reset-password?token=${options.token}`;
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#f9fafb;padding:20px">
+        <div style="background:#0f2342;border-radius:12px 12px 0 0;padding:28px;text-align:center">
+          <h1 style="color:#fff;margin:0;font-size:26px">TurnoPro</h1>
+        </div>
+        <div style="background:#fff;padding:32px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
+          <h2 style="color:#0f2342;margin-top:0">Recuperar contraseña</h2>
+          <p style="color:#4b5563">Hola <strong>${options.name}</strong>,</p>
+          <p style="color:#4b5563">
+            Recibimos una solicitud para restablecer la contraseña de tu cuenta.
+            Hacé clic en el botón para crear una nueva contraseña.
+          </p>
+          <div style="text-align:center;margin:32px 0">
+            <a href="${resetUrl}"
+               style="background:#2563eb;color:#fff;padding:14px 32px;border-radius:10px;
+                      text-decoration:none;font-weight:bold;font-size:16px;display:inline-block">
+              Restablecer contraseña →
+            </a>
+          </div>
+          <p style="color:#6b7280;font-size:13px">
+            Este link expira en <strong>1 hora</strong>. Si no solicitaste este cambio, podés ignorar este email.
+          </p>
+          <p style="color:#9ca3af;font-size:12px;text-align:center;margin-top:24px;
+                    border-top:1px solid #f3f4f6;padding-top:16px">
+            TurnoPro — Tu turno en un clic
+          </p>
+        </div>
+      </div>
+    `;
+    await this.sendEmail({
+      to:      options.toEmail,
+      subject: 'TurnoPro — Restablecé tu contraseña',
+      html,
+    });
+  }
+
   async sendWelcomeProfessional(options: {
     toEmail:          string;
     professionalName: string;
