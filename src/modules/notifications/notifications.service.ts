@@ -46,7 +46,7 @@ export class NotificationsService {
     this.transporter = nodemailer.createTransport({
       host:   process.env.MAIL_HOST || 'smtp.gmail.com',
       port:   parseInt(process.env.MAIL_PORT || '587'),
-      secure: process.env.MAIL_PORT === '465', // true si usas 465
+      secure: false,
       auth: {
         user: process.env.MAIL_USER,
         pass: process.env.MAIL_PASS,
@@ -685,30 +685,30 @@ export class NotificationsService {
   }
 
   private async sendEmail(options: { to: string; subject: string; html: string }): Promise<void> {
-    const resendKey = process.env.RESEND_API_KEY;
+    const brevoKey = process.env.BREVO_API_KEY;
 
     try {
-      if (resendKey) {
-        // ── Resend API HTTP (producción — Render no bloquea puerto 443) ──────
-        const from = process.env.MAIL_FROM || 'TurnoPro <onboarding@resend.dev>';
-        const res  = await fetch('https://api.resend.com/emails', {
+      if (brevoKey) {
+        // ── Brevo API HTTP (producción — puerto 443, Render no bloquea) ──────
+        const from = process.env.MAIL_FROM || 'TurnoPro <tuturnopro@gmail.com>';
+        const res  = await fetch('https://api.brevo.com/v3/smtp/email', {
           method:  'POST',
           headers: {
-            'Authorization': `Bearer ${resendKey}`,
-            'Content-Type':  'application/json',
+            'api-key':      brevoKey,
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from,
-            to:      [options.to],
-            subject: options.subject,
-            html:    options.html,
+            sender:      { name: 'TurnoPro', email: from.match(/<(.+)>/)?.[1] || from },
+            to:          [{ email: options.to }],
+            subject:     options.subject,
+            htmlContent: options.html,
           }),
         });
         if (!res.ok) {
           const body = await res.text();
-          throw new Error(`Resend API error ${res.status}: ${body}`);
+          throw new Error(`Brevo API error ${res.status}: ${body}`);
         }
-        this.logger.log(`Email enviado via Resend a ${options.to}: ${options.subject}`);
+        this.logger.log(`Email enviado via Brevo a ${options.to}: ${options.subject}`);
       } else {
         // ── Nodemailer SMTP (local con Gmail) ─────────────────────────────────
         await this.transporter.sendMail({
