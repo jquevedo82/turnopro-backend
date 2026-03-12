@@ -44,7 +44,7 @@ export class NotificationsService {
     this.transporter = nodemailer.createTransport({
       host:   process.env.MAIL_HOST || 'smtp.gmail.com',
       port:   parseInt(process.env.MAIL_PORT || '587'),
-      secure: false, // true para puerto 465, false para otros
+      secure: process.env.MAIL_PORT === '465', // true si usas 465
       auth: {
         user: process.env.MAIL_USER,
         pass: process.env.MAIL_PASS,
