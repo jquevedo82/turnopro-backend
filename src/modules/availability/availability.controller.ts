@@ -27,7 +27,8 @@ export class AvailabilityController {
     @Param('professionalId', ParseIntPipe) professionalId: number,
     @Param('year', ParseIntPipe) year: number,
     @Param('month', ParseIntPipe) month: number,
+    @Query('serviceId') serviceId?: number,  // ← agregado
   ) {
-    return this.svc.getAvailableDaysInMonth(professionalId, year, month);
+    return this.svc.getAvailableDaysInMonth(professionalId, year, month, serviceId);
   }
 }

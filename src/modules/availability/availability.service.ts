@@ -24,6 +24,7 @@ import { Appointment }      from '../appointments/appointment.entity';
 import { AppointmentStatus } from '../appointments/appointment-status.enum';
 import { ScheduleService }  from '../schedule/schedule.service';
 import { ProfessionalsService } from '../professionals/professionals.service';
+import { ServicesService }  from '../services/services.service';
 
 @Injectable()
 export class AvailabilityService {
@@ -32,24 +33,30 @@ export class AvailabilityService {
     private readonly appointmentRepo: Repository<Appointment>,
     private readonly scheduleService: ScheduleService,
     private readonly professionalsService: ProfessionalsService,
+    private readonly servicesService: ServicesService,   // ← inyectado
   ) {}
 
   /**
    * Retorna los slots disponibles para un profesional en una fecha específica.
    *
-   * Algoritmo:
+   * Algoritmo (slots dinámicos por servicio):
    * 1. Verifica si la fecha tiene una excepción (día cerrado o horario especial)
    * 2. Si no tiene excepción, usa la plantilla semanal
-   * 3. Genera todos los slots posibles del día
-   * 4. Descuenta los slots ya ocupados por citas existentes
+   * 3. Determina duración y buffer según el servicio (con fallback al perfil)
+   * 4. Genera slots dinámicamente: al encontrar una cita que choca, salta
+   *    al final de esa cita en lugar de avanzar de a un slot fijo
    * 5. Descuenta slots fuera del rango de anticipación mínima/máxima
    *
    * @param professionalId — ID del profesional
    * @param date           — Fecha en formato YYYY-MM-DD
-   * @param serviceId      — ID del servicio (para obtener la duración)
+   * @param serviceId      — ID del servicio (para obtener duración y buffer)
    * @returns string[]     — Array de horarios disponibles en formato HH:mm
    */
-  async getAvailableSlots(professionalId: number, date: string, serviceId?: number): Promise<string[]> {
+  async getAvailableSlots(
+    professionalId: number,
+    date: string,
+    serviceId?: number,
+  ): Promise<string[]> {
     const professional = await this.professionalsService.findOne(professionalId);
 
     // ── Verificar límites de anticipación ─────────────────────────────────
@@ -59,35 +66,39 @@ export class AvailabilityService {
     const diffHours = diffMs / (1000 * 60 * 60);
     const diffDays  = diffHours / 24;
 
-    // Verificar anticipación mínima
     if (diffHours < professional.minAdvanceHours) return [];
-
-    // Verificar anticipación máxima
-    if (diffDays > professional.maxAdvanceDays) return [];
+    if (diffDays > professional.maxAdvanceDays)   return [];
 
     // ── Obtener horario para la fecha solicitada ───────────────────────────
     const scheduleForDate = await this.getScheduleForDate(professionalId, date);
-    if (!scheduleForDate) return []; // Día cerrado o sin horario configurado
+    if (!scheduleForDate) return [];
 
     const { startTime, endTime } = scheduleForDate;
 
-    // ── Determinar duración del slot ──────────────────────────────────────
-    // Si se especifica un servicio, usa su duración. Si no, usa la del profesional.
-    let slotDuration = professional.slotDurationMinutes;
+    // ── Determinar duración y buffer según el servicio ────────────────────
+    // Si se recibe serviceId → usa service.durationMinutes y service.bufferMinutes
+    // Si service.bufferMinutes es null → fallback al bufferMinutes del perfil
+    // Si no hay serviceId → usa los valores base del perfil
+    let slotDuration  = professional.slotDurationMinutes;
     let bufferMinutes = professional.bufferMinutes;
 
     if (serviceId) {
-      const { ServicesService } = await import('../services/services.service');
-      // Nota: en implementación real, inyectar ServicesService en el constructor
-      // Para simplificar, usamos los valores del profesional si no se puede resolver
+      try {
+        const service = await this.servicesService.findOne(serviceId);
+        if (service.durationMinutes) {
+          slotDuration = service.durationMinutes;
+        }
+        if (service.bufferMinutes !== null && service.bufferMinutes !== undefined) {
+          bufferMinutes = service.bufferMinutes;
+        }
+        // Si service.bufferMinutes es null → conserva el bufferMinutes del perfil
+      } catch {
+        // Si el servicio no se encuentra, continúa con los valores del perfil
+      }
     }
 
-    // ── Generar todos los slots del día ────────────────────────────────────
-    const allSlots = this.generateSlots(startTime, endTime, slotDuration, bufferMinutes);
-
     // ── Obtener citas ya ocupadas para ese día ────────────────────────────
-    // Solo considera citas CONFIRMED, PENDING y RECONFIRMED como ocupadas
-    // CANCELLED, REJECTED y EXPIRED liberan el slot automáticamente
+    // Incluye startTime y endTime para el algoritmo de salto
     const occupiedAppointments = await this.appointmentRepo
       .createQueryBuilder('a')
       .where('a.professionalId = :professionalId', { professionalId })
@@ -97,32 +108,88 @@ export class AvailabilityService {
           AppointmentStatus.PENDING,
           AppointmentStatus.CONFIRMED,
           AppointmentStatus.RECONFIRMED,
-          AppointmentStatus.COMPLETED,  // completada sigue ocupando el slot
+          AppointmentStatus.COMPLETED,
         ],
       })
-      .select(['a.startTime'])
+      .select(['a.startTime', 'a.endTime'])
       .getMany();
 
-    // MySQL type:'time' devuelve 'HH:mm:ss' — normalizar a 'HH:mm' para comparar
-    const occupiedTimes = new Set(occupiedAppointments.map((a) => a.startTime.substring(0, 5)));
+    // Normalizar a minutos para comparación eficiente
+    const occupied = occupiedAppointments.map((a) => ({
+      start: this.timeStringToMinutes(a.startTime.substring(0, 5)),
+      end:   this.timeStringToMinutes(a.endTime.substring(0, 5)),
+    }));
 
-    // ── Filtrar slots ocupados y pasados ──────────────────────────────────
-    const available = allSlots.filter((slot) => {
-      if (occupiedTimes.has(slot)) return false;
+    // ── Calcular slots con algoritmo dinámico ─────────────────────────────
+    const slots = this.calculateDynamicSlots(
+      startTime,
+      endTime,
+      slotDuration,
+      bufferMinutes,
+      occupied,
+    );
 
-      // Para el día de hoy: filtrar slots que ya pasaron + buffer mínimo
-      if (date === now.toISOString().split('T')[0]) {
-        const [h, m]  = slot.split(':').map(Number);
+    // ── Filtrar slots pasados (solo para hoy) ─────────────────────────────
+    const todayStr = now.toISOString().split('T')[0];
+    if (date === todayStr) {
+      const minTime = new Date(now.getTime() + professional.minAdvanceHours * 60 * 60 * 1000);
+      return slots.filter((slot) => {
+        const [h, m]   = slot.split(':').map(Number);
         const slotTime = new Date();
         slotTime.setHours(h, m, 0, 0);
-        const minTime  = new Date(now.getTime() + professional.minAdvanceHours * 60 * 60 * 1000);
-        if (slotTime < minTime) return false;
+        return slotTime >= minTime;
+      });
+    }
+
+    return slots;
+  }
+
+  /**
+   * Algoritmo de slots dinámicos.
+   *
+   * En lugar de generar todos los slots y filtrar los ocupados,
+   * avanza con un cursor y cuando encuentra una cita que choca
+   * salta directamente al final de esa cita + buffer.
+   *
+   * Esto es necesario para que servicios de distinta duración
+   * no generen slots superpuestos con citas existentes.
+   *
+   * Ejemplo con duration=60, buffer=5:
+   *   - Cursor 08:00 → fin sería 09:05. Hay cita 08:30-09:00 → choca
+   *   - Cursor salta a 09:00 + 5 buffer = 09:05
+   *   - Cursor 09:05 → fin sería 10:10. Libre → agrega 09:05
+   *   - Cursor avanza a 10:10...
+   */
+  private calculateDynamicSlots(
+    startTime: string,
+    endTime: string,
+    durationMin: number,
+    bufferMin: number,
+    occupied: { start: number; end: number }[],
+  ): string[] {
+    const slots: string[]   = [];
+    const endMinutes        = this.timeStringToMinutes(endTime);
+    let cursor              = this.timeStringToMinutes(startTime);
+
+    while (cursor + durationMin <= endMinutes) {
+      const slotEnd = cursor + durationMin;
+
+      // Buscar si alguna cita choca con el rango [cursor, slotEnd + buffer]
+      const clash = occupied.find(
+        (appt) => appt.start < slotEnd + bufferMin && appt.end > cursor,
+      );
+
+      if (!clash) {
+        // Slot libre — agregarlo y avanzar
+        slots.push(this.minutesToTimeString(cursor));
+        cursor += durationMin + bufferMin;
+      } else {
+        // Slot ocupado — saltar al final de la cita que choca + buffer
+        cursor = clash.end + bufferMin;
       }
+    }
 
-      return true;
-    });
-
-    return available;
+    return slots;
   }
 
   /**
@@ -132,47 +199,27 @@ export class AvailabilityService {
    * Si no hay excepción: retorna el horario de la plantilla semanal.
    */
   private async getScheduleForDate(professionalId: number, date: string) {
-    // ── Verificar excepción ───────────────────────────────────────────────
     const exception = await this.scheduleService.getExceptionForDate(professionalId, date);
     if (exception) {
-      if (exception.isClosed) return null; // Día cerrado
+      if (exception.isClosed) return null;
       return { startTime: exception.customStartTime, endTime: exception.customEndTime };
     }
 
-    // ── Usar plantilla semanal ────────────────────────────────────────────
-    const dayOfWeek = new Date(date + 'T12:00:00').getDay(); // 0=Domingo...6=Sábado
-    const schedules = await this.scheduleService.getWeeklySchedule(professionalId);
+    const dayOfWeek   = new Date(date + 'T12:00:00').getDay();
+    const schedules   = await this.scheduleService.getWeeklySchedule(professionalId);
     const daySchedule = schedules.find((s) => s.dayOfWeek === dayOfWeek && s.isActive);
 
-    if (!daySchedule) return null; // Día no configurado o inactivo
+    if (!daySchedule) return null;
     return { startTime: daySchedule.startTime, endTime: daySchedule.endTime };
   }
 
-  /**
-   * Genera el array de slots a partir de un rango horario.
-   * Ej: startTime=08:00, endTime=13:00, duration=20, buffer=5
-   *     → ['08:00', '08:25', '08:50', '09:15', ...]
-   *
-   * Para cambiar el formato de los slots (ej: 12h): modificar la función toTimeString()
-   */
-  private generateSlots(startTime: string, endTime: string, durationMin: number, bufferMin: number): string[] {
-    const slots: string[] = [];
-    const [startH, startM] = startTime.split(':').map(Number);
-    const [endH, endM]     = endTime.split(':').map(Number);
-
-    let currentMinutes = startH * 60 + startM;
-    const endMinutes   = endH * 60 + endM;
-    const stepMinutes  = durationMin + bufferMin;
-
-    while (currentMinutes + durationMin <= endMinutes) {
-      slots.push(this.minutesToTimeString(currentMinutes));
-      currentMinutes += stepMinutes;
-    }
-
-    return slots;
+  /** Convierte 'HH:mm' a minutos totales */
+  private timeStringToMinutes(time: string): number {
+    const [h, m] = time.split(':').map(Number);
+    return h * 60 + m;
   }
 
-  /** Convierte minutos totales a string HH:mm */
+  /** Convierte minutos totales a string 'HH:mm' */
   private minutesToTimeString(totalMinutes: number): string {
     const h = Math.floor(totalMinutes / 60).toString().padStart(2, '0');
     const m = (totalMinutes % 60).toString().padStart(2, '0');
@@ -182,19 +229,19 @@ export class AvailabilityService {
   /**
    * Retorna los días disponibles de un mes para mostrar en el calendario.
    * Un día está disponible si tiene al menos un slot libre.
-   *
-   * @param professionalId
-   * @param year  — Año (ej: 2026)
-   * @param month — Mes 1-12
-   * @returns string[] — Array de fechas disponibles en formato YYYY-MM-DD
    */
-  async getAvailableDaysInMonth(professionalId: number, year: number, month: number): Promise<string[]> {
+  async getAvailableDaysInMonth(
+    professionalId: number,
+    year: number,
+    month: number,
+    serviceId?: number,
+  ): Promise<string[]> {
     const availableDays: string[] = [];
     const daysInMonth = new Date(year, month, 0).getDate();
 
     for (let day = 1; day <= daysInMonth; day++) {
-      const date = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-      const slots = await this.getAvailableSlots(professionalId, date);
+      const date  = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+      const slots = await this.getAvailableSlots(professionalId, date, serviceId);
       if (slots.length > 0) availableDays.push(date);
     }
 
