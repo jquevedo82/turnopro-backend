@@ -23,7 +23,7 @@ export const appConfig = {
     port:   parseInt(process.env.MAIL_PORT ?? '587', 10),
     user:   process.env.MAIL_USER   ?? '',
     pass:   process.env.MAIL_PASS   ?? '',
-    from:   process.env.MAIL_FROM   ?? '"TurnoPro" <noreply@turnopro.com>',
+    from:   process.env.MAIL_FROM   ?? '"TurnoPro" <tuturnopro@gmail.com>',
   },
   pendingExpiryHours: parseInt(process.env.PENDING_EXPIRY_HOURS ?? '2', 10),
 };

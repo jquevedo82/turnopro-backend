@@ -12,13 +12,15 @@
  * Para cambiar el algoritmo de hash: modificar las llamadas a bcrypt
  * ─────────────────────────────────────────────────────────────────────────────
  */
-import { Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { JwtService }    from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository }    from 'typeorm';
 import * as bcrypt       from 'bcrypt';
 import { Professional }  from '../professionals/professional.entity';
 import { LoginDto }      from './dto/login.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+import * as crypto from 'crypto';
 
 // Superadmin hardcodeado temporalmente.
 // Para producción: crear tabla de admins en la BD y manejar aquí
@@ -32,10 +34,10 @@ const SUPERADMIN = {
 @Injectable()
 export class AuthService {
   constructor(
-    // Repositorio de profesionales para buscar por email
     @InjectRepository(Professional)
     private readonly professionalRepo: Repository<Professional>,
-    private readonly jwtService: JwtService,
+    private readonly jwtService:       JwtService,
+    private readonly notifications:    NotificationsService,
   ) {}
 
   /**
@@ -50,7 +52,8 @@ export class AuthService {
     // ── Verificar si es el superadmin ────────────────────────────────────────
     if (dto.email === process.env.SUPERADMIN_EMAIL) {
       const validPass = await bcrypt.compare(dto.password, process.env.SUPERADMIN_HASH || '');
-      if (!validPass) throw new UnauthorizedException('Credenciales incorrectas2');
+      if (!validPass) throw new UnauthorizedException('Credenciales incorrectas');
+
       return {
         accessToken: this.signToken({ sub: 0, email: dto.email, role: 'superadmin', professionalId: null }),
         user: { id: 0, email: dto.email, role: 'superadmin' },
@@ -89,6 +92,57 @@ export class AuthService {
         slug:       professional.slug,
       },
     };
+  }
+
+  /**
+   * POST /api/auth/forgot-password
+   * Genera un token de recuperación y envía el email.
+   */
+  async forgotPassword(email: string): Promise<void> {
+    const professional = await this.professionalRepo.findOne({ where: { email } });
+    // No revelar si el email existe o no — siempre responder OK
+    if (!professional) return;
+
+    const token  = crypto.randomBytes(32).toString('hex');
+    const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+
+    await this.professionalRepo.update(professional.id, {
+      resetToken:       token,
+      resetTokenExpiry: expiry,
+    });
+
+    await this.notifications.sendPasswordReset({
+      toEmail: professional.email,
+      name:    professional.name,
+      token,
+    });
+  }
+
+  /**
+   * POST /api/auth/reset-password
+   * Valida el token y actualiza la contraseña.
+   */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const professional = await this.professionalRepo.findOne({
+      where: { resetToken: token },
+    });
+
+    if (!professional)
+      throw new BadRequestException('El link de recuperación no es válido');
+
+    if (!professional.resetTokenExpiry || professional.resetTokenExpiry < new Date())
+      throw new BadRequestException('El link de recuperación expiró. Solicitá uno nuevo.');
+
+    if (!newPassword || newPassword.length < 6)
+      throw new BadRequestException('La contraseña debe tener al menos 6 caracteres');
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+
+    await this.professionalRepo.update(professional.id, {
+      password:         hashed,
+      resetToken:       null as any,
+      resetTokenExpiry: null as any,
+    });
   }
 
   /**

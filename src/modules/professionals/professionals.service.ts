@@ -16,8 +16,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository }       from 'typeorm';
 import * as bcrypt          from 'bcrypt';
+import * as crypto          from 'crypto';
 import { Professional }     from './professional.entity';
-import { CreateProfessionalDto } from './dto/create-professional.dto';
+import { CreateProfessionalDto }  from './dto/create-professional.dto';
+import { NotificationsService }   from '../notifications/notifications.service';
 
 // Rondas de salt para bcrypt. A mayor número, más seguro pero más lento.
 // Para cambiar: modificar este valor. Recomendado entre 10 y 12.
@@ -27,7 +29,8 @@ const BCRYPT_ROUNDS = 10;
 export class ProfessionalsService {
   constructor(
     @InjectRepository(Professional)
-    private readonly repo: Repository<Professional>,
+    private readonly repo:          Repository<Professional>,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Retorna todos los profesionales con su plan. Para filtrar activos: agregar where: { isActive: true } */
@@ -68,15 +71,46 @@ export class ProfessionalsService {
       throw new ConflictException('El email o slug ya está en uso');
     }
 
-    // Hashear la contraseña con bcrypt
-    const hashedPassword = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    // Contraseña inicial fija: 'turnopro' — el profesional la cambia en su primer ingreso
+    const rawPassword    = dto.password || 'turnopro';
+    const hashedPassword = await bcrypt.hash(rawPassword, BCRYPT_ROUNDS);
 
     const professional = this.repo.create({
       ...dto,
       password: hashedPassword,
     });
 
-    return this.repo.save(professional);
+    const saved = await this.repo.save(professional);
+
+    // Generar token de configuración de contraseña (expira en 24hs)
+    const resetToken  = crypto.randomBytes(32).toString('hex');
+    const resetExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await this.repo.update(saved.id, {
+      resetToken,
+      resetTokenExpiry: resetExpiry,
+    });
+
+    // Enviar email de bienvenida con link para configurar contraseña
+    try {
+      await this.notifications.sendWelcomeProfessional({
+        toEmail:          saved.email,
+        professionalName: saved.name,
+        email:            saved.email,
+        resetToken,
+        slug:             saved.slug,
+      });
+      console.log('Email de bienvenida enviado a:', saved.email);
+    } catch (err: any) {
+      console.error('=== ERROR EMAIL BIENVENIDA ===');
+      console.error('Destinatario:', saved.email);
+      console.error('Mensaje:', err?.message);
+      console.error('Código:', err?.code);
+      console.error('Response:', err?.response);
+      console.error('Stack:', err?.stack);
+      console.error('==============================');
+    }
+
+    return saved;
   }
 
   /** Actualiza datos del profesional. Para campos restringidos: agregar validaciones aquí. */

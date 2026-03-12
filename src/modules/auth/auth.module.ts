@@ -13,7 +13,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthController } from './auth.controller';
 import { AuthService }    from './auth.service';
 import { JwtStrategy }   from './jwt.strategy';
-import { Professional }  from '../professionals/professional.entity';
+import { Professional }      from '../professionals/professional.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { Professional }  from '../professionals/professional.entity';
       }),
     }),
     TypeOrmModule.forFeature([Professional]),
+    NotificationsModule,
   ],
   controllers: [AuthController],
   providers:   [AuthService, JwtStrategy],

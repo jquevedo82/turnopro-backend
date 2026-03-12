@@ -41,6 +41,8 @@ export class NotificationsService {
     // ── Configurar transporte de email ────────────────────────────────────
     // Para cambiar a otro proveedor: reemplazar este objeto de configuración
     // Para Gmail: activar "Contraseñas de aplicación" en la cuenta Google
+    // Transporter de Nodemailer como fallback (funciona en local con Gmail)
+    // En producción se usa Resend API directamente via HTTP (ver sendEmail)
     this.transporter = nodemailer.createTransport({
       host:   process.env.MAIL_HOST || 'smtp.gmail.com',
       port:   parseInt(process.env.MAIL_PORT || '587'),
@@ -48,6 +50,9 @@ export class NotificationsService {
       auth: {
         user: process.env.MAIL_USER,
         pass: process.env.MAIL_PASS,
+      },
+      tls: {
+        rejectUnauthorized: false,
       },
     });
   }
@@ -577,16 +582,142 @@ export class NotificationsService {
     });
   }
 
+  async sendPasswordReset(options: {
+    toEmail: string;
+    name:    string;
+    token:   string;
+  }): Promise<void> {
+    const resetUrl = `${this.appUrl}/reset-password?token=${options.token}`;
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#f9fafb;padding:20px">
+        <div style="background:#0f2342;border-radius:12px 12px 0 0;padding:28px;text-align:center">
+          <h1 style="color:#fff;margin:0;font-size:26px">TurnoPro</h1>
+        </div>
+        <div style="background:#fff;padding:32px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
+          <h2 style="color:#0f2342;margin-top:0">Recuperar contraseña</h2>
+          <p style="color:#4b5563">Hola <strong>${options.name}</strong>,</p>
+          <p style="color:#4b5563">
+            Recibimos una solicitud para restablecer la contraseña de tu cuenta.
+            Hacé clic en el botón para crear una nueva contraseña.
+          </p>
+          <div style="text-align:center;margin:32px 0">
+            <a href="${resetUrl}"
+               style="background:#2563eb;color:#fff;padding:14px 32px;border-radius:10px;
+                      text-decoration:none;font-weight:bold;font-size:16px;display:inline-block">
+              Restablecer contraseña →
+            </a>
+          </div>
+          <p style="color:#6b7280;font-size:13px">
+            Este link expira en <strong>1 hora</strong>. Si no solicitaste este cambio, podés ignorar este email.
+          </p>
+          <p style="color:#9ca3af;font-size:12px;text-align:center;margin-top:24px;
+                    border-top:1px solid #f3f4f6;padding-top:16px">
+            TurnoPro — Tu turno en un clic
+          </p>
+        </div>
+      </div>
+    `;
+    await this.sendEmail({
+      to:      options.toEmail,
+      subject: 'TurnoPro — Restablecé tu contraseña',
+      html,
+    });
+  }
+
+  async sendWelcomeProfessional(options: {
+    toEmail:          string;
+    professionalName: string;
+    email:            string;
+    resetToken:       string;
+    slug:             string;
+  }): Promise<void> {
+    const setupUrl   = `${this.appUrl}/reset-password?token=${options.resetToken}`;
+    const bookingUrl = `${this.appUrl}/${options.slug}`;
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#f9fafb;padding:20px">
+        <div style="background:#0f2342;border-radius:12px 12px 0 0;padding:28px;text-align:center">
+          <h1 style="color:#fff;margin:0;font-size:26px">TurnoPro</h1>
+          <p style="color:#93c5fd;margin:6px 0 0;font-size:14px">Sistema de gestión de citas</p>
+        </div>
+        <div style="background:#fff;padding:32px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
+          <h2 style="color:#0f2342;margin-top:0">¡Bienvenido/a, ${options.professionalName}! 👋</h2>
+          <p style="color:#4b5563">
+            Tu cuenta en TurnoPro fue creada correctamente. Para acceder al panel necesitás
+            configurar tu contraseña haciendo clic en el botón de abajo.
+          </p>
+
+          <div style="background:#eff6ff;border-radius:10px;padding:16px;margin:24px 0;border:1px solid #bfdbfe">
+            <p style="color:#1e40af;font-weight:bold;margin:0 0 8px;font-size:14px">📧 Tu email de acceso</p>
+            <p style="color:#1e3a8a;font-size:15px;margin:0;font-weight:bold">${options.email}</p>
+          </div>
+
+          <div style="text-align:center;margin:32px 0">
+            <a href="${setupUrl}"
+               style="background:#2563eb;color:#fff;padding:16px 36px;border-radius:10px;
+                      text-decoration:none;font-weight:bold;font-size:16px;display:inline-block">
+              Configurar mi contraseña →
+            </a>
+          </div>
+
+          <p style="color:#6b7280;font-size:13px;text-align:center">
+            Este link expira en <strong>24 horas</strong>.
+          </p>
+
+          <div style="background:#f0fdf4;border-radius:10px;padding:16px;margin:24px 0;border:1px solid #bbf7d0">
+            <p style="color:#166534;font-size:13px;margin:0">
+              🌐 <strong>Tu página de reservas:</strong><br/>
+              <a href="${bookingUrl}" style="color:#16a34a">${bookingUrl}</a><br/>
+              <span style="color:#4b5563;font-size:12px">Una vez que configures tu contraseña, compartila con tus pacientes.</span>
+            </p>
+          </div>
+
+          <p style="color:#9ca3af;font-size:12px;text-align:center;margin-top:28px;border-top:1px solid #f3f4f6;padding-top:16px">
+            TurnoPro — Tu turno en un clic
+          </p>
+        </div>
+      </div>
+    `;
+    await this.sendEmail({
+      to:      options.toEmail,
+      subject: `Bienvenido/a a TurnoPro — Configurá tu contraseña`,
+      html,
+    });
+  }
+
   private async sendEmail(options: { to: string; subject: string; html: string }): Promise<void> {
+    const resendKey = process.env.RESEND_API_KEY;
+
     try {
-      await this.transporter.sendMail({
-        from: process.env.MAIL_FROM || '"TurnoPro" <noreply@turnopro.com>',
-        ...options,
-      });
-      this.logger.log(`Email enviado a ${options.to}: ${options.subject}`);
+      if (resendKey) {
+        // ── Resend API HTTP (producción — Render no bloquea puerto 443) ──────
+        const from = process.env.MAIL_FROM || 'TurnoPro <onboarding@resend.dev>';
+        const res  = await fetch('https://api.resend.com/emails', {
+          method:  'POST',
+          headers: {
+            'Authorization': `Bearer ${resendKey}`,
+            'Content-Type':  'application/json',
+          },
+          body: JSON.stringify({
+            from,
+            to:      [options.to],
+            subject: options.subject,
+            html:    options.html,
+          }),
+        });
+        if (!res.ok) {
+          const body = await res.text();
+          throw new Error(`Resend API error ${res.status}: ${body}`);
+        }
+        this.logger.log(`Email enviado via Resend a ${options.to}: ${options.subject}`);
+      } else {
+        // ── Nodemailer SMTP (local con Gmail) ─────────────────────────────────
+        await this.transporter.sendMail({
+          from: process.env.MAIL_FROM || 'TurnoPro <noreply@turnopro.com>',
+          ...options,
+        });
+        this.logger.log(`Email enviado via SMTP a ${options.to}: ${options.subject}`);
+      }
     } catch (error) {
-      // En fase 1 solo logueamos el error, no bloqueamos la cita
-      // Para manejo más estricto: relanzar el error aquí
       this.logger.error(`Error enviando email a ${options.to}:`, error.message);
     }
   }
