@@ -550,6 +550,7 @@ export class NotificationsService {
     professionalName: string;
     slug:             string;
   }): Promise<void> {
+    this.logger.log(`[sendShareLink] Enviando a: ${options.toEmail} | profesional: ${options.professionalName} | slug: ${options.slug}`);
     const bookingUrl = `${this.appUrl}/${options.slug}`;
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#f9fafb;padding:20px">
@@ -580,6 +581,7 @@ export class NotificationsService {
       subject: `Reservá tu turno con ${options.professionalName}`,
       html,
     });
+    this.logger.log(`[sendShareLink] Email procesado para: ${options.toEmail}`);
   }
 
   async sendPasswordReset(options: {
@@ -691,6 +693,9 @@ export class NotificationsService {
       if (brevoKey) {
         // ── Brevo API HTTP (producción — puerto 443, Render no bloquea) ──────
         const from = process.env.MAIL_FROM || 'TurnoPro <tuturnopro@gmail.com>';
+        const senderEmail = from.match(/<(.+)>/)?.[1] || from;
+        this.logger.log(`[sendEmail] Brevo → to: ${options.to} | from: ${senderEmail} | subject: ${options.subject}`);
+
         const res  = await fetch('https://api.brevo.com/v3/smtp/email', {
           method:  'POST',
           headers: {
@@ -698,7 +703,7 @@ export class NotificationsService {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            sender:      { name: 'TurnoPro', email: from.match(/<(.+)>/)?.[1] || from },
+            sender:      { name: 'TurnoPro', email: senderEmail },
             to:          [{ email: options.to }],
             subject:     options.subject,
             htmlContent: options.html,
@@ -708,17 +713,19 @@ export class NotificationsService {
           const body = await res.text();
           throw new Error(`Brevo API error ${res.status}: ${body}`);
         }
-        this.logger.log(`Email enviado via Brevo a ${options.to}: ${options.subject}`);
+        this.logger.log(`[sendEmail] Brevo OK → ${options.to}: ${options.subject}`);
       } else {
         // ── Nodemailer SMTP (local con Gmail) ─────────────────────────────────
+        this.logger.log(`[sendEmail] SMTP → to: ${options.to} | subject: ${options.subject}`);
         await this.transporter.sendMail({
           from: process.env.MAIL_FROM || 'TurnoPro <noreply@turnopro.com>',
           ...options,
         });
-        this.logger.log(`Email enviado via SMTP a ${options.to}: ${options.subject}`);
+        this.logger.log(`[sendEmail] SMTP OK → ${options.to}: ${options.subject}`);
       }
     } catch (error) {
-      this.logger.error(`Error enviando email a ${options.to}:`, error.message);
+      this.logger.error(`[sendEmail] ERROR enviando a ${options.to} | subject: ${options.subject}`);
+      this.logger.error(`[sendEmail] Detalle: ${error.message}`);
     }
   }
 
