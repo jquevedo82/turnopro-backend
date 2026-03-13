@@ -1,13 +1,18 @@
 /**
  * client.entity.ts — Tabla: clients
- * Los clientes son únicos por profesional (no globales).
- * Un mismo email puede tener registros en múltiples profesionales.
+ * Los clientes son únicos por profesional + email + nombre normalizado.
+ * Esto permite que una misma familia use el mismo email para distintos pacientes.
+ * Un mismo email puede tener múltiples registros si los nombres son distintos.
  */
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn, CreateDateColumn } from 'typeorm';
+import {
+  Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany,
+  JoinColumn, CreateDateColumn, Index,
+} from 'typeorm';
 import { Professional } from '../professionals/professional.entity';
 import { Appointment }  from '../appointments/appointment.entity';
 
 @Entity('clients')
+@Index('IDX_client_prof_email_name', ['professionalId', 'email', 'name']) // ← índice de búsqueda
 export class Client {
   @PrimaryGeneratedColumn()
   id: number;

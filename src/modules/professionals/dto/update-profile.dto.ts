@@ -17,6 +17,7 @@ export class UpdateProfileDto {
   @IsOptional() @IsString() publicEmail?: string;
   @IsOptional() @IsString() instagram?:  string;
   @IsOptional() @IsString() facebook?:   string;
+  @IsOptional() @IsString() avatar?:     string; // ← URL de la foto de perfil
 
   // Reglas de reserva
   @IsOptional() @IsInt() @IsPositive() slotDurationMinutes?: number;
