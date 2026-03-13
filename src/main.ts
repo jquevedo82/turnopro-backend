@@ -3,24 +3,30 @@
  * Para cambiar puerto: modificar PORT en .env
  * Para agregar orígenes CORS: agregar al array origins
  */
-import { NestFactory }     from '@nestjs/core';
-import { ValidationPipe }  from '@nestjs/common';
-import { AppModule }       from './app.module';
-import { appConfig }       from './config/app.config';
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import { AppModule } from './app.module';
+import { appConfig } from './config/app.config';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.setGlobalPrefix('api');
 
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist:            true,
+      whitelist: true,
       forbidNonWhitelisted: true,
-      transform:            true,
+      transform: true,
     }),
   );
 
+  // Servir archivos estáticos (solo necesario con STORAGE=local)
+  if (process.env.STORAGE === 'local') {
+    app.useStaticAssets(join(__dirname, '..', 'uploads'), { prefix: '/uploads' });
+  }
   // Para agregar más orígenes CORS: agregar al array origins
   const origins = [
     'http://localhost:5173',
@@ -29,8 +35,8 @@ async function bootstrap() {
   ].filter(Boolean);             // elimina duplicados vacíos
 
   app.enableCors({
-    origin:      origins,
-    methods:     ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    origin: origins,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
   });
 

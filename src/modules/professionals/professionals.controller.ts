@@ -15,10 +15,13 @@
  */
 import {
   Controller, Get, Post, Patch, Body, Param,
-  UseGuards, ParseIntPipe,
+  UseGuards, ParseIntPipe, UseInterceptors,
+  UploadedFile, BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ProfessionalsService }   from './professionals.service';
 import { NotificationsService }   from '../notifications/notifications.service';
+import { StorageService }         from '../storage/storage.service';
 import { CreateProfessionalDto }  from './dto/create-professional.dto';
 import { UpdateProfileDto }       from './dto/update-profile.dto';
 import { JwtAuthGuard }           from '../../common/guards/jwt-auth.guard';
@@ -35,6 +38,7 @@ export class ProfessionalsController {
   constructor(
     private readonly svc: ProfessionalsService,
     private readonly notificationsService: NotificationsService,
+    private readonly storageService: StorageService,
   ) {}
 
   // ── Ruta /me ANTES de /:id para que Express no la interprete como id="me" ──
@@ -88,6 +92,39 @@ export class ProfessionalsController {
     @Body('newPassword')     newPassword:     string,
   ) {
     return this.svc.changePassword(getProfessionalId(user), currentPassword, newPassword);
+  }
+
+  /**
+   * POST /api/professionals/avatar
+   * El profesional sube su foto de perfil.
+   * Acepta multipart/form-data con campo "file" (JPG, PNG, WebP — max 2MB)
+   */
+  @Post('avatar')
+  @Roles(Role.PROFESSIONAL)
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 2 * 1024 * 1024 }, // 2MB máximo
+  }))
+  async uploadAvatar(
+    @CurrentUser() user: JwtPayload,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('No se recibió ningún archivo');
+
+    const professionalId = getProfessionalId(user);
+    const professional   = await this.svc.findOne(professionalId);
+
+    // Eliminar avatar anterior si existe
+    if (professional.avatar) {
+      await this.storageService.delete(professional.avatar);
+    }
+
+    // Subir nuevo avatar
+    const avatarUrl = await this.storageService.upload(file.buffer, file.mimetype, 'avatars');
+
+    // Guardar URL en el perfil
+    await this.svc.updateAvatar(professionalId, avatarUrl);
+
+    return { avatar: avatarUrl };
   }
 
   // ── Superadmin ────────────────────────────────────────────────────────────

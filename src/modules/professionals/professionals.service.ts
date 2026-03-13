@@ -163,4 +163,8 @@ export class ProfessionalsService {
     await this.repo.save(prof);
     return { message: 'Contraseña actualizada correctamente' };
   }
+
+  async updateAvatar(id: number, avatarUrl: string): Promise<void> {
+    await this.repo.update(id, { avatar: avatarUrl });
+  }
 }
