@@ -10,6 +10,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 export enum Role {
-  SUPERADMIN   = 'superadmin',
+  SUPERADMIN = 'superadmin',
   PROFESSIONAL = 'professional',
+  SECRETARY = 'secretary',   // ← agregar esta línea
 }

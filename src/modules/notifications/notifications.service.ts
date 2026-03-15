@@ -686,6 +686,62 @@ export class NotificationsService {
     });
   }
 
+  /**
+   * Email de bienvenida para secretarias.
+   * Mismo mecanismo que sendWelcomeProfessional — link para configurar contraseña.
+   * El token usa el mismo endpoint /reset-password que comparten todos los roles.
+   */
+  async sendWelcomeSecretary(options: {
+    toEmail: string;
+    name:    string;
+    token:   string;
+  }): Promise<void> {
+    const setupUrl = `${this.appUrl}/reset-password?token=${options.token}`;
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#f9fafb;padding:20px">
+        <div style="background:#0f2342;border-radius:12px 12px 0 0;padding:28px;text-align:center">
+          <h1 style="color:#fff;margin:0;font-size:26px">TurnoPro</h1>
+          <p style="color:#93c5fd;margin:6px 0 0;font-size:14px">Sistema de gestión de citas</p>
+        </div>
+        <div style="background:#fff;padding:32px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
+          <h2 style="color:#0f2342;margin-top:0">¡Bienvenida, ${options.name}! 👋</h2>
+          <p style="color:#4b5563">
+            Tu cuenta de secretaria en TurnoPro fue creada. Para acceder al panel
+            necesitás configurar tu contraseña haciendo clic en el botón de abajo.
+          </p>
+
+          <div style="background:#eff6ff;border-radius:10px;padding:16px;margin:24px 0;border:1px solid #bfdbfe">
+            <p style="color:#1e40af;font-weight:bold;margin:0 0 8px;font-size:14px">📧 Tu email de acceso</p>
+            <p style="color:#1e3a8a;font-size:15px;margin:0;font-weight:bold">${options.toEmail}</p>
+          </div>
+
+          <div style="text-align:center;margin:32px 0">
+            <a href="${setupUrl}"
+               style="background:#2563eb;color:#fff;padding:16px 36px;border-radius:10px;
+                      text-decoration:none;font-weight:bold;font-size:16px;display:inline-block">
+              Configurar mi contraseña →
+            </a>
+          </div>
+
+          <p style="color:#6b7280;font-size:13px;text-align:center">
+            Este link expira en <strong>48 horas</strong>.
+            Si expiró, pedile al administrador que reenvíe tus credenciales.
+          </p>
+
+          <p style="color:#9ca3af;font-size:12px;text-align:center;margin-top:28px;
+                    border-top:1px solid #f3f4f6;padding-top:16px">
+            TurnoPro — Tu turno en un clic
+          </p>
+        </div>
+      </div>
+    `;
+    await this.sendEmail({
+      to:      options.toEmail,
+      subject: 'TurnoPro — Configurá tu contraseña de secretaria',
+      html,
+    });
+  }
+
   private async sendEmail(options: { to: string; subject: string; html: string }): Promise<void> {
     const brevoKey = process.env.BREVO_API_KEY;
 

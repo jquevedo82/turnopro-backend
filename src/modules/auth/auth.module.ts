@@ -15,6 +15,7 @@ import { AuthService }    from './auth.service';
 import { JwtStrategy }   from './jwt.strategy';
 import { Professional }      from '../professionals/professional.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { SecretariesModule } from '../secretaries/secretaries.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     }),
     TypeOrmModule.forFeature([Professional]),
     NotificationsModule,
+    SecretariesModule,   // ← agregar
   ],
   controllers: [AuthController],
   providers:   [AuthService, JwtStrategy],
