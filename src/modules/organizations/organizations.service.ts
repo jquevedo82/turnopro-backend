@@ -13,7 +13,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository }       from 'typeorm';
+import { IsNull, Repository }       from 'typeorm';
 import { Organization }     from './organization.entity';
 import { Professional }     from '../professionals/professional.entity';
 
@@ -145,7 +145,7 @@ export class OrganizationsService {
    */
   async findUnassigned(): Promise<Professional[]> {
     return this.professionalRepo.find({
-      where: { organizationId: null as any },
+      where: { organizationId:  IsNull()},
       select: ['id', 'name', 'email', 'slug', 'profession', 'isActive'],
       order: { name: 'ASC' },
     });
