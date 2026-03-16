@@ -18,27 +18,31 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 
 // ── Módulos de negocio ────────────────────────────────────────────────────────
-import { AuthModule }          from './modules/auth/auth.module';
-import { PlansModule }         from './modules/plans/plans.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { PlansModule } from './modules/plans/plans.module';
 import { ProfessionalsModule } from './modules/professionals/professionals.module';
-import { ServicesModule }      from './modules/services/services.module';
+import { ServicesModule } from './modules/services/services.module';
 import { ScheduleConfigModule } from './modules/schedule/schedule.module';
-import { AvailabilityModule }  from './modules/availability/availability.module';
-import { AppointmentsModule }  from './modules/appointments/appointments.module';
-import { ClientsModule }       from './modules/clients/clients.module';
+import { AvailabilityModule } from './modules/availability/availability.module';
+import { AppointmentsModule } from './modules/appointments/appointments.module';
+import { ClientsModule } from './modules/clients/clients.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
-import { PublicModule }        from './modules/public/public.module';
-import { SuperadminModule }    from './modules/superadmin/superadmin.module';
+import { PublicModule } from './modules/public/public.module';
+import { SuperadminModule } from './modules/superadmin/superadmin.module';
 
 // ── Entidades de la BD (TypeORM necesita conocerlas todas) ────────────────────
-import { Plan }                from './modules/plans/plan.entity';
-import { Professional }        from './modules/professionals/professional.entity';
-import { Service }             from './modules/services/service.entity';
+import { Plan } from './modules/plans/plan.entity';
+import { Professional } from './modules/professionals/professional.entity';
+import { Service } from './modules/services/service.entity';
 import { ProfessionalSchedule } from './modules/schedule/professional-schedule.entity';
-import { ScheduleException }   from './modules/schedule/schedule-exception.entity';
-import { Client }              from './modules/clients/client.entity';
-import { Appointment }         from './modules/appointments/appointment.entity';
-import { NotificationLog }     from './modules/notifications/notification-log.entity';
+import { ScheduleException } from './modules/schedule/schedule-exception.entity';
+import { Client } from './modules/clients/client.entity';
+import { Appointment } from './modules/appointments/appointment.entity';
+import { NotificationLog } from './modules/notifications/notification-log.entity';
+import { Organization } from './modules/organizations/organization.entity';
+import { Secretary } from './modules/secretaries/secretary.entity';
+import { SecretariesModule } from './modules/secretaries/secretaries.module';
+import { OrganizationsModule } from './modules/organizations/organizations.module';
 
 @Module({
   imports: [
@@ -56,11 +60,11 @@ import { NotificationLog }     from './modules/notifications/notification-log.en
     // Para PRODUCCIÓN: cambiar synchronize a false y usar migraciones
     TypeOrmModule.forRoot({
       type: 'mysql',
-      host:     process.env.DB_HOST     || 'localhost',
-      port:     parseInt(process.env.DB_PORT || '3306'),
-      username: process.env.DB_USER     || 'root',
-      password: process.env.DB_PASS     || '',
-      database: process.env.DB_NAME     || 'turnopro_db',
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '3306'),
+      username: process.env.DB_USER || 'root',
+      password: process.env.DB_PASS || '',
+      database: process.env.DB_NAME || 'turnopro_db',
       entities: [
         Plan,
         Professional,
@@ -70,6 +74,8 @@ import { NotificationLog }     from './modules/notifications/notification-log.en
         Client,
         Appointment,
         NotificationLog,
+        Organization,   // ← agregar
+        Secretary,      // ← agregar
       ],
       // ⚠️ IMPORTANTE: synchronize:true solo para desarrollo
       // En producción: cambiar a false y ejecutar: npm run migration:run
@@ -97,6 +103,8 @@ import { NotificationLog }     from './modules/notifications/notification-log.en
     NotificationsModule,
     PublicModule,
     SuperadminModule,
+    OrganizationsModule,
+    SecretariesModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }

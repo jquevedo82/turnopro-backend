@@ -87,6 +87,14 @@ export class Professional {
   @Column({ type: 'json', nullable: true })
   gallery: string[];
 
+  // ── Organización ───────────────────────────────────────────────────────────
+  // Nullable: un profesional puede existir de forma completamente independiente.
+  // El superadmin asigna/desvincula desde su panel.
+  // Cuando es null → modo individual (comportamiento actual, sin cambios).
+  // Cuando tiene valor → pertenece a una clínica/organización con secretaria.
+  @Column({ name: 'organization_id', nullable: true })
+  organizationId: number;
+
   // ── Suscripción ────────────────────────────────────────────────────────────
   @ManyToOne(() => Plan, (plan) => plan.professionals, { nullable: true })
   @JoinColumn({ name: 'plan_id' })
