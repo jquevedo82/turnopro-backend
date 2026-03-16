@@ -24,6 +24,14 @@ export class ServicesService {
     });
   }
 
+    /** Retorna los servicios de un profesional */
+    findByProfessionalT(professionalId: number): Promise<Service[]> {
+      return this.repo.find({
+        where: { professionalId },
+        order: { name: 'ASC' },
+      });
+    }
+
   async findOne(id: number): Promise<Service> {
     const service = await this.repo.findOne({ where: { id } });
     if (!service) throw new NotFoundException(`Servicio #${id} no encontrado`);

@@ -36,6 +36,12 @@ export class ServicesController {
     return this.svc.findByProfessional(getProfessionalId(user));
   }
 
+  @Get('myTodos')
+  @Roles(Role.PROFESSIONAL)
+  findMyT(@CurrentUser() user: JwtPayload) {
+    return this.svc.findByProfessionalT(getProfessionalId(user));
+  }
+
   @Post()
   @Roles(Role.PROFESSIONAL)
   create(@Body() dto: CreateServiceDto, @CurrentUser() user: JwtPayload) {
