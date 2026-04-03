@@ -9,7 +9,8 @@
  *   Agregar @Post('refresh') con su lógica en auth.service.ts
  * ─────────────────────────────────────────────────────────────────────────────
  */
-import { Controller, Post, Get, Body, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto }    from './dto/login.dto';
 import { Public }      from '../../common/decorators/public.decorator';
@@ -23,6 +24,8 @@ export class AuthController {
    * Login unificado para todos los tipos de usuarios.
    * No requiere autenticación previa (@Public)
    */
+  // 5 intentos por minuto — protección contra brute force
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
@@ -35,6 +38,8 @@ export class AuthController {
    * Recibe un email y envía el link de recuperación. Siempre responde 200
    * para no revelar si el email existe en el sistema.
    */
+  // 3 solicitudes por minuto — evita enumeración de emails
+  @Throttle({ default: { ttl: 60000, limit: 3 } })
   @Public()
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
@@ -60,19 +65,4 @@ export class AuthController {
     return { message: 'Contraseña actualizada correctamente' };
   }
 
-  /** GET /api/auth/mail-check — diagnóstico temporal, eliminar después */
-  @Public()
-  @Get('mail-check')
-  mailCheck() {
-    const pass = process.env.MAIL_PASS || '';
-    return {
-      host:     process.env.MAIL_HOST,
-      port:     process.env.MAIL_PORT,
-      user:     process.env.MAIL_USER,
-      passLen:  pass.length,
-      passHint: pass.substring(0, 4) + '...' + pass.substring(pass.length - 4),
-      from:     process.env.MAIL_FROM,
-      appUrl:   process.env.APP_URL,
-    };
-  }
 }

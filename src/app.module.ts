@@ -12,10 +12,12 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import { Module } from '@nestjs/common';
+import { Module }  from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
 // ── Módulos de negocio ────────────────────────────────────────────────────────
 import { AuthModule } from './modules/auth/auth.module';
@@ -86,9 +88,16 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
     }),
 
     // ── Scheduler para tareas cron ───────────────────────────────────────────
-    // Habilita los decoradores @Cron() en toda la aplicación
-    // Se usa en NotificationsModule para recordatorios y expiración de citas
     ScheduleModule.forRoot(),
+
+    // ── Rate limiting global ─────────────────────────────────────────────────
+    // Límites por defecto: 20 requests por 60 segundos por IP
+    // Endpoints sensibles tienen límites más estrictos con @Throttle()
+    // Para saltear en un endpoint: usar @SkipThrottle()
+    ThrottlerModule.forRoot([{
+      ttl:   60000, // ventana de 60 segundos
+      limit: 20,    // máximo 20 requests por IP en esa ventana
+    }]),
 
     // ── Módulos de negocio ───────────────────────────────────────────────────
     // Para agregar un módulo nuevo: importarlo arriba y agregarlo aquí
@@ -105,6 +114,10 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
     SuperadminModule,
     OrganizationsModule,
     SecretariesModule,
+  ],
+  providers: [
+    // Aplica ThrottlerGuard globalmente a todos los endpoints
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule { }
