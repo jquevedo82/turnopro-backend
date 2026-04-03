@@ -13,7 +13,8 @@ export interface JwtPayload {
   email:          string;
   role:           'superadmin' | 'professional' | 'secretary';
   // Solo presente en tokens de profesional
-  professionalId: number | null;
+  professionalId:   number | null;
+  professionalType?: string;   // vertical del profesional (health/beauty/wellness/other)
   // Solo presente en tokens de secretaria
   secretaryId?:    number;
   organizationId?: number;

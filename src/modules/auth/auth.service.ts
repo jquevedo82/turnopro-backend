@@ -118,17 +118,19 @@ export class AuthService {
 
     return {
       accessToken: this.signToken({
-        sub:            professional.id,
-        email:          professional.email,
-        role:           'professional',
-        professionalId: professional.id,
+        sub:              professional.id,
+        email:            professional.email,
+        role:             'professional',
+        professionalId:   professional.id,
+        professionalType: professional.professionalType,
       }),
       user: {
-        id:    professional.id,
-        email: professional.email,
-        role:  'professional',
-        name:  professional.name,
-        slug:  professional.slug,
+        id:               professional.id,
+        email:            professional.email,
+        role:             'professional',
+        name:             professional.name,
+        slug:             professional.slug,
+        professionalType: professional.professionalType,
       },
     };
   }

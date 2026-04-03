@@ -27,6 +27,7 @@ import { Appointment }        from '../appointments/appointment.entity';
 import { Client }             from '../clients/client.entity';
 import { Professional }       from '../professionals/professional.entity';
 import { Service }            from '../services/service.entity';
+import { getVerticalConfig }  from '../../config/verticals';
 
 @Injectable()
 export class NotificationsService {
@@ -72,6 +73,7 @@ export class NotificationsService {
     const cancelLink     = `${this.appUrl}/cita/${appointment.token}/cancelar`;
     const isPending      = appointment.status === 'pending';
 
+    const vc   = getVerticalConfig(professional.professionalType);
     const html = this.buildConfirmationTemplate({
       clientName:        client.name,
       professionalName:  professional.name,
@@ -83,13 +85,16 @@ export class NotificationsService {
       managementLink,
       cancelLink,
       isPending,
+      clientLabel:       vc.clientLabel,
+      appointmentLabel:  vc.appointmentLabel,
+      emailGreeting:     vc.emailGreeting,
     });
 
     await this.sendEmail({
       to:      client.email,
       subject: isPending
-        ? `Tu solicitud de cita con ${professional.name} fue recibida`
-        : `Tu cita con ${professional.name} está confirmada ✅`,
+        ? `Tu solicitud de ${vc.appointmentLabel.toLowerCase()} con ${professional.name} fue recibida`
+        : `Tu ${vc.appointmentLabel.toLowerCase()} con ${professional.name} está confirmada ✅`,
       html,
     });
 
@@ -799,37 +804,45 @@ export class NotificationsService {
   /** Template HTML de confirmación de cita. Para modificar el diseño del email: editar aquí */
   private buildConfirmationTemplate(data: {
     clientName: string; professionalName: string; serviceName: string;
-    date: string; time: string; managementLink: string; cancelLink: string; isPending: boolean; professionalPhone?: string; professionalName2?: string;
+    date: string; time: string; managementLink: string; cancelLink: string; isPending: boolean;
+    professionalPhone?: string; professionalName2?: string;
+    // Labels adaptados al vertical — con fallback para compatibilidad
+    clientLabel?:      string;
+    appointmentLabel?: string;
+    emailGreeting?:    string;
   }): string {
-    const dateObj  = new Date(data.date + 'T12:00:00');
-    const dateStr  = dateObj.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const dateObj         = new Date(data.date + 'T12:00:00');
+    const dateStr         = dateObj.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const apptLabel       = data.appointmentLabel ?? 'Cita';
+    const apptLabelLower  = apptLabel.toLowerCase();
+    const greeting        = data.emailGreeting ?? 'Hola';
 
     return `
     <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; background: #f9fafb; padding: 24px; border-radius: 12px;">
       <div style="background: #0f2342; padding: 24px; border-radius: 10px 10px 0 0; text-align: center;">
         <h1 style="color: white; font-size: 22px; margin: 0;">TurnoPro</h1>
-        <p style="color: #93c5fd; margin: 4px 0 0;">${data.isPending ? 'Solicitud recibida' : 'Cita confirmada ✅'}</p>
+        <p style="color: #93c5fd; margin: 4px 0 0;">${data.isPending ? 'Solicitud recibida' : `${apptLabel} confirmada ✅`}</p>
       </div>
       <div style="background: white; padding: 24px; border-radius: 0 0 10px 10px;">
-        <p>Hola <strong>${data.clientName}</strong>,</p>
+        <p>${greeting} <strong>${data.clientName}</strong>,</p>
         <p>${data.isPending
-          ? 'Tu solicitud de cita fue recibida. El profesional la confirmará a la brevedad.'
-          : `Tu cita con <strong>${data.professionalName}</strong> está confirmada.`
+          ? `Tu solicitud de ${apptLabelLower} fue recibida. El profesional la confirmará a la brevedad.`
+          : `Tu ${apptLabelLower} con <strong>${data.professionalName}</strong> está confirmada.`
         }</p>
         <div style="background: #eff6ff; border-radius: 8px; padding: 16px; margin: 16px 0;">
-          <p style="margin:4px 0;">🩺 <strong>Servicio:</strong> ${data.serviceName}</p>
+          <p style="margin:4px 0;">🗂 <strong>Servicio:</strong> ${data.serviceName}</p>
           <p style="margin:4px 0;">📅 <strong>Fecha:</strong> ${dateStr}</p>
           <p style="margin:4px 0;">⏰ <strong>Hora:</strong> ${data.time}hs</p>
-          <p style="margin:4px 0;">👨‍⚕️ <strong>Profesional:</strong> ${data.professionalName}</p>
+          <p style="margin:4px 0;">👤 <strong>Profesional:</strong> ${data.professionalName}</p>
         </div>
         <a href="${data.managementLink}" style="display:block; background:#1a56db; color:white; padding:13px; border-radius:8px; text-decoration:none; text-align:center; margin-bottom:10px;">
-          👁 Ver mi cita
+          👁 Ver mi ${apptLabelLower}
         </a>
         <a href="${data.cancelLink}" style="display:block; background:white; color:#ef4444; padding:11px; border-radius:8px; text-decoration:none; text-align:center; border:1px solid #fecaca;">
-          ✕ Cancelar mi cita
+          ✕ Cancelar mi ${apptLabelLower}
         </a>
         ${data.professionalPhone ? `
-        <a href="https://wa.me/${data.professionalPhone.replace(/[^0-9+]/g, '')}?text=${encodeURIComponent('Hola ' + (data.professionalName2 || 'doctor') + ', le escribo por mi cita del ' + data.date + ' a las ' + data.time + 'hs.')}"
+        <a href="https://wa.me/${data.professionalPhone.replace(/[^0-9+]/g, '')}?text=${encodeURIComponent('Hola ' + (data.professionalName2 || data.professionalName) + ', le escribo por mi ' + apptLabelLower + ' del ' + data.date + ' a las ' + data.time + 'hs.')}"
            style="display:block; background:#25d366; color:white; padding:11px; border-radius:8px; text-decoration:none; text-align:center; margin-top:10px; font-weight:bold;">
           💬 Escribir al profesional por WhatsApp
         </a>` : ''}

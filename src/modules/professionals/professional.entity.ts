@@ -24,6 +24,7 @@ import { ProfessionalSchedule } from '../schedule/professional-schedule.entity';
 import { ScheduleException }    from '../schedule/schedule-exception.entity';
 import { Client }               from '../clients/client.entity';
 import { Appointment }          from '../appointments/appointment.entity';
+import { ProfessionalType }     from './professional-type.enum';
 
 @Entity('professionals')
 export class Professional {
@@ -86,6 +87,17 @@ export class Professional {
   // Para cambiar el límite de fotos: modificar la validación en el DTO
   @Column({ type: 'json', nullable: true })
   gallery: string[];
+
+  // ── Tipo de profesional (vertical) ────────────────────────────────────────
+  // Define terminología (paciente/cliente, cita/turno/sesión) y features disponibles.
+  // Lo asigna el superadmin al crear el profesional. Default: HEALTH para compatibilidad.
+  @Column({
+    name: 'professional_type',
+    type: 'enum',
+    enum: ProfessionalType,
+    default: ProfessionalType.HEALTH,
+  })
+  professionalType: ProfessionalType;
 
   // ── Organización ───────────────────────────────────────────────────────────
   // Nullable: un profesional puede existir de forma completamente independiente.
