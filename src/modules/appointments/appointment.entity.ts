@@ -5,7 +5,7 @@
  */
 import {
   Entity, PrimaryGeneratedColumn, Column,
-  ManyToOne, JoinColumn, CreateDateColumn,
+  ManyToOne, JoinColumn, CreateDateColumn, Index,
 } from 'typeorm';
 import { Professional }     from '../professionals/professional.entity';
 import { Client }           from '../clients/client.entity';
@@ -13,6 +13,7 @@ import { Service }          from '../services/service.entity';
 import { AppointmentStatus } from './appointment-status.enum';
 
 @Entity('appointments')
+@Index('IDX_appointment_prof_date_status', ['professionalId', 'date', 'status'])
 export class Appointment {
   @PrimaryGeneratedColumn()
   id: number;

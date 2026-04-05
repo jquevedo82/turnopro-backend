@@ -61,3 +61,13 @@ ALTER TABLE `professionals`
     NULL
     DEFAULT NULL
   AFTER `arrival_tolerance_minutes`;
+
+
+-- -----------------------------------------------------------------------------
+-- [2026-04-05] Índice compuesto en appointments
+-- Motivo: sin índice las consultas de disponibilidad y cola hacen full table scan
+--         cuando la BD crece. El índice cubre las consultas más frecuentes:
+--         agenda del día (professionalId + date) y filtros por estado.
+-- -----------------------------------------------------------------------------
+CREATE INDEX `IDX_appointment_prof_date_status`
+  ON `appointments` (`professional_id`, `date`, `status`);
