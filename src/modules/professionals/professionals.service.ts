@@ -167,4 +167,9 @@ export class ProfessionalsService {
   async updateAvatar(id: number, avatarUrl: string): Promise<void> {
     await this.repo.update(id, { avatar: avatarUrl });
   }
+
+  /** Actualiza el timestamp de la cola — se llama cada vez que cambia el estado de un paciente en sala. */
+  async bumpQueueUpdatedAt(professionalId: number): Promise<void> {
+    await this.repo.update(professionalId, { queueUpdatedAt: new Date() });
+  }
 }

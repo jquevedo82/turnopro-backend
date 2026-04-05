@@ -167,4 +167,43 @@ export class AppointmentsController {
     const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
     return this.svc.cancel(id, 'professional', professionalId);
   }
+
+  // ── Sala de espera ────────────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROFESSIONAL, Role.SECRETARY)
+  @Post(':id/arrived')
+  async markArrived(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user:           JwtPayload,
+    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
+  ) {
+    const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
+    return this.svc.markArrived(id, professionalId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROFESSIONAL, Role.SECRETARY)
+  @Post(':id/start')
+  async startConsultation(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user:           JwtPayload,
+    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
+  ) {
+    const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
+    return this.svc.startConsultation(id, professionalId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROFESSIONAL, Role.SECRETARY)
+  @Get('queue')
+  async getQueue(
+    @CurrentUser() user:        JwtPayload,
+    @Query('date') date?:       string,
+    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
+  ) {
+    const today          = date ?? new Date().toISOString().split('T')[0];
+    const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
+    return this.svc.getQueue(professionalId, today);
+  }
 }

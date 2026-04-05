@@ -9,9 +9,11 @@
  * GET /api/public/:slug/services  → Servicios disponibles
  * GET /api/public/:slug/quick-confirm/:token → Confirmar cita rápida (link del prof)
  * GET /api/public/:slug/quick-reject/:token  → Rechazar cita rápida
+ * GET /api/public/:slug/queue     → Cola pública de sala de espera (pantalla TV)
+ * GET /api/public/:slug/queue-version → Timestamp de última actualización de cola (polling liviano)
  * ─────────────────────────────────────────────────────────────────────────────
  */
-import { Controller, Get, Post, Param, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, NotFoundException } from '@nestjs/common';
 import { Public }               from '../../common/decorators/public.decorator';
 import { ProfessionalsService } from '../professionals/professionals.service';
 import { ServicesService }      from '../services/services.service';
@@ -80,5 +82,30 @@ export class PublicController {
     const appointment = await this.appointmentsService.findByToken(token);
     await this.appointmentsService.cancel(appointment.id, 'professional');
     return { success: true, message: 'Cita rechazada. El slot fue liberado.' };
+  }
+
+  /**
+   * Cola pública de sala de espera — consumida por la pantalla /sala/:slug.
+   * Sin auth. Solo muestra pacientes ARRIVED e IN_PROGRESS, con nombre anonimizado.
+   * El frontend hace polling cada 30s sobre queue-version; si cambió, llama aquí.
+   */
+  @Public()
+  @Get(':slug/queue')
+  async getPublicQueue(
+    @Param('slug') slug: string,
+    @Query('date') date?: string,
+  ) {
+    const today = date ?? new Date().toISOString().split('T')[0];
+    return this.appointmentsService.getPublicQueue(slug, today);
+  }
+
+  /**
+   * Polling liviano — devuelve solo el timestamp de la última acción en la cola.
+   * La pantalla pública llama esto cada 30s; si queueUpdatedAt cambió → recarga la cola.
+   */
+  @Public()
+  @Get(':slug/queue-version')
+  async getQueueVersion(@Param('slug') slug: string) {
+    return this.appointmentsService.getQueueVersion(slug);
   }
 }

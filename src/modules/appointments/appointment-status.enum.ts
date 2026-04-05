@@ -14,6 +14,8 @@ export enum AppointmentStatus {
   PENDING      = 'pending',      // Creada, esperando acción (confirmación manual activada)
   CONFIRMED    = 'confirmed',    // Confirmada (automática o por el profesional)
   RECONFIRMED  = 'reconfirmed',  // Reconfirmada por el cliente la noche anterior
+  ARRIVED      = 'arrived',      // El paciente llegó al consultorio — está en la sala de espera
+  IN_PROGRESS  = 'in_progress',  // El profesional inició la consulta — paciente en consultorio
   CANCELLED    = 'cancelled',    // Cancelada por el cliente o el profesional
   REJECTED     = 'rejected',     // Rechazada por el profesional (solo en modo manual)
   EXPIRED      = 'expired',      // Expirada: nadie actuó en el tiempo límite

@@ -157,6 +157,17 @@ export class Professional {
   @Column({ name: 'pending_expiry_hours', default: 2 })
   pendingExpiryHours: number;
 
+  // ── Sala de espera ─────────────────────────────────────────────────────────
+  // Minutos de tolerancia para considerar a un paciente como llegado a tiempo.
+  // Ej: 15 → un paciente puede llegar hasta 15 min tarde y aún ser marcado ARRIVED.
+  @Column({ name: 'arrival_tolerance_minutes', default: 15 })
+  arrivalToleranceMinutes: number;
+
+  // Timestamp de la última acción en la cola del día (llegada, inicio, completar).
+  // La pantalla pública consulta este campo cada 30s — si cambió, recarga la cola.
+  @Column({ name: 'queue_updated_at', type: 'datetime', nullable: true })
+  queueUpdatedAt: Date;
+
   // ── Recuperación de contraseña ────────────────────────────────────────────
   @Column({ name: 'reset_token', length: 100, nullable: true })
   resetToken: string;
