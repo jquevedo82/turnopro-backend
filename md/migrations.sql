@@ -1,9 +1,11 @@
 -- =============================================================================
 -- TurnoPro — Migraciones manuales de base de datos
 -- =============================================================================
--- Ejecutar en orden cronológico sobre la BD de producción (Aiven MySQL).
--- Cada bloque indica la fecha, el motivo y el SQL a ejecutar.
--- Una vez aplicado, NO volver a ejecutar (no son idempotentes salvo indicación).
+-- Ejecutar en orden cronológico sobre la BD de producción (Aiven MySQL 8).
+-- Todos los statements son idempotentes: se pueden re-ejecutar sin error.
+--   ADD COLUMN IF NOT EXISTS  → no falla si la columna ya existe
+--   MODIFY COLUMN             → idempotente por naturaleza (redefine, no duplica)
+--   CREATE INDEX IF NOT EXISTS → no falla si el índice ya existe
 -- =============================================================================
 
 
@@ -14,7 +16,7 @@
 -- Impacto: todos los profesionales existentes quedan con DEFAULT 'health'.
 -- -----------------------------------------------------------------------------
 ALTER TABLE `professionals`
-  ADD COLUMN `professional_type`
+  ADD COLUMN IF NOT EXISTS `professional_type`
     ENUM('health', 'beauty', 'wellness', 'other')
     CHARACTER SET utf8mb4
     COLLATE utf8mb4_unicode_ci
@@ -31,7 +33,7 @@ ALTER TABLE `professionals`
 -- -----------------------------------------------------------------------------
 
 -- 1. Nuevo estado en la columna `status` de appointments
---    Nota: MySQL requiere redefinir el ENUM completo al agregar valores.
+--    MODIFY es idempotente: redefine el ENUM completo sin error si ya existe.
 ALTER TABLE `appointments`
   MODIFY COLUMN `status`
     ENUM('pending','confirmed','reconfirmed','arrived','in_progress','cancelled','rejected','expired','completed','no_show')
@@ -40,7 +42,7 @@ ALTER TABLE `appointments`
 
 -- 2. Timestamp de llegada del paciente a la sala
 ALTER TABLE `appointments`
-  ADD COLUMN `arrived_at`
+  ADD COLUMN IF NOT EXISTS `arrived_at`
     DATETIME
     NULL
     DEFAULT NULL
@@ -48,7 +50,7 @@ ALTER TABLE `appointments`
 
 -- 3. Tolerancia de llegada en minutos (cuánto tarde puede llegar y aún ser marcado ARRIVED)
 ALTER TABLE `professionals`
-  ADD COLUMN `arrival_tolerance_minutes`
+  ADD COLUMN IF NOT EXISTS `arrival_tolerance_minutes`
     INT
     NOT NULL
     DEFAULT 15
@@ -56,7 +58,7 @@ ALTER TABLE `professionals`
 
 -- 4. Timestamp de la última acción en la cola (para polling liviano desde pantalla pública)
 ALTER TABLE `professionals`
-  ADD COLUMN `queue_updated_at`
+  ADD COLUMN IF NOT EXISTS `queue_updated_at`
     DATETIME
     NULL
     DEFAULT NULL
@@ -69,5 +71,5 @@ ALTER TABLE `professionals`
 --         cuando la BD crece. El índice cubre las consultas más frecuentes:
 --         agenda del día (professionalId + date) y filtros por estado.
 -- -----------------------------------------------------------------------------
-CREATE INDEX `IDX_appointment_prof_date_status`
+CREATE INDEX IF NOT EXISTS `IDX_appointment_prof_date_status`
   ON `appointments` (`professional_id`, `date`, `status`);
