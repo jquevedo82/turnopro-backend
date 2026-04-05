@@ -107,3 +107,37 @@ SET @sql = IF(
      ON `appointments` (`professional_id`, `date`, `status`)'
 );
 PREPARE _stmt FROM @sql; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;
+
+
+-- -----------------------------------------------------------------------------
+-- [2026-04-05] Índices faltantes en clients y schedule_exceptions
+-- Motivo: evita full table scan en búsquedas de clientes y excepciones de horario.
+-- -----------------------------------------------------------------------------
+
+-- Índice compuesto en clients (professional_id, email, name)
+SET @sql = IF(
+  EXISTS(
+    SELECT 1 FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME   = 'clients'
+      AND INDEX_NAME   = 'IDX_client_prof_email_name'
+  ),
+  'SELECT ''[skip] IDX_client_prof_email_name ya existe''',
+  'CREATE INDEX `IDX_client_prof_email_name`
+     ON `clients` (`professional_id`, `email`, `name`)'
+);
+PREPARE _stmt FROM @sql; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;
+
+-- Índice compuesto en schedule_exceptions (professional_id, date)
+SET @sql = IF(
+  EXISTS(
+    SELECT 1 FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME   = 'schedule_exceptions'
+      AND INDEX_NAME   = 'IDX_schedule_exception_prof_date'
+  ),
+  'SELECT ''[skip] IDX_schedule_exception_prof_date ya existe''',
+  'CREATE INDEX `IDX_schedule_exception_prof_date`
+     ON `schedule_exceptions` (`professional_id`, `date`)'
+);
+PREPARE _stmt FROM @sql; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;
