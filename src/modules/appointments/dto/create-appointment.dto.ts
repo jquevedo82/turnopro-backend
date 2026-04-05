@@ -5,7 +5,9 @@
  *   2. Agregar en appointment.entity.ts
  *   3. Actualizar appointments.service.ts → create()
  */
-import { IsNumber, IsString, IsOptional, IsEmail, Matches, MaxLength } from 'class-validator';
+import { IsNumber, IsString, IsOptional, IsEmail, MaxLength } from 'class-validator';
+import { IsPhoneAR_VE } from '../../../common/validators/phone.validator';
+
 export class CreateAppointmentDto {
   @IsNumber()
   professionalId: number;
@@ -21,7 +23,7 @@ export class CreateAppointmentDto {
   clientName: string;
   @IsEmail({}, { message: 'El email del cliente no es válido' })
   clientEmail: string;
-  @Matches(/^\+?[0-9\s\-]{7,20}$/, { message: 'El teléfono del cliente no es válido' })
+  @IsPhoneAR_VE()
   clientPhone: string;
   @IsString()
   @IsOptional()
