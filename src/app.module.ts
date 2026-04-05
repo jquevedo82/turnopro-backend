@@ -95,8 +95,10 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
     // Endpoints sensibles tienen límites más estrictos con @Throttle()
     // Para saltear en un endpoint: usar @SkipThrottle()
     ThrottlerModule.forRoot([{
-      ttl:   60000, // ventana de 60 segundos
-      limit: 20,    // máximo 20 requests por IP en esa ventana
+      ttl:   60000,
+      // En desarrollo se sube el límite para no bloquear el testing manual.
+      // En producción el valor es 20 requests/min por IP.
+      limit: process.env.NODE_ENV === 'production' ? 20 : 200,
     }]),
 
     // ── Módulos de negocio ───────────────────────────────────────────────────

@@ -24,8 +24,8 @@ export class AuthController {
    * Login unificado para todos los tipos de usuarios.
    * No requiere autenticación previa (@Public)
    */
-  // 5 intentos por minuto — protección contra brute force
-  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  // 5 intentos/min en producción — 100 en desarrollo para no bloquear testing
+  @Throttle({ default: { ttl: 60000, limit: process.env.NODE_ENV === 'production' ? 5 : 100 } })
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
@@ -38,8 +38,8 @@ export class AuthController {
    * Recibe un email y envía el link de recuperación. Siempre responde 200
    * para no revelar si el email existe en el sistema.
    */
-  // 3 solicitudes por minuto — evita enumeración de emails
-  @Throttle({ default: { ttl: 60000, limit: 3 } })
+  // 3 solicitudes/min en producción — 50 en desarrollo
+  @Throttle({ default: { ttl: 60000, limit: process.env.NODE_ENV === 'production' ? 3 : 50 } })
   @Public()
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
