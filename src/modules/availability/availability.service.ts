@@ -56,18 +56,39 @@ export class AvailabilityService {
     professionalId: number,
     date: string,
     serviceId?: number,
+    localNow?: string,   // HH:mm hora local del cliente (ej: "22:30")
   ): Promise<string[]> {
     const professional = await this.professionalsService.findOne(professionalId);
 
-    // ── Verificar límites de anticipación ─────────────────────────────────
-    const requestedDate = new Date(date + 'T00:00:00');
-    const now = new Date();
-    const diffMs    = requestedDate.getTime() - now.getTime();
-    const diffHours = diffMs / (1000 * 60 * 60);
-    const diffDays  = diffHours / 24;
+    // ── Normalizar hora local del cliente ────────────────────────────────
+    // localNow (HH:mm) viene del frontend cuando consulta el día actual.
+    // Si está presente → es "hoy" desde la perspectiva del cliente.
+    // Si no viene → fallback UTC del servidor (comportamiento previo).
+    const localNowMinutes: number | null = localNow
+      ? this.timeStringToMinutes(localNow)
+      : null;
 
-    if (diffHours < professional.minAdvanceHours) return [];
-    if (diffDays > professional.maxAdvanceDays)   return [];
+    // isToday: si el frontend mandó localNow, está preguntando por hoy.
+    // Fallback: comparar con la fecha UTC del servidor.
+    const isToday = localNow != null
+      ? true
+      : date === new Date().toISOString().split('T')[0];
+
+    // ── Verificar límites de anticipación ─────────────────────────────────
+    // Comparamos fechas como strings (YYYY-MM-DD) para no depender de UTC.
+    const todayStr      = new Date().toISOString().split('T')[0];
+    const requestedDate = new Date(date      + 'T12:00:00Z');
+    const todayDate     = new Date(todayStr  + 'T12:00:00Z');
+    const diffDays      = (requestedDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24);
+
+    if (isToday && localNowMinutes !== null) {
+      // Para hoy: solo bloqueamos si minAdvanceHours >= 24 (ningún slot del día alcanza).
+      // El filtro exacto de slots pasados se hace más abajo, slot a slot.
+      if (professional.minAdvanceHours >= 24) return [];
+    } else if (diffDays * 24 < professional.minAdvanceHours) {
+      return [];
+    }
+    if (diffDays > professional.maxAdvanceDays) return [];
 
     // ── Obtener horario para la fecha solicitada ───────────────────────────
     const scheduleForDate = await this.getScheduleForDate(professionalId, date);
@@ -130,15 +151,10 @@ export class AvailabilityService {
     );
 
     // ── Filtrar slots pasados (solo para hoy) ─────────────────────────────
-    const todayStr = now.toISOString().split('T')[0];
-    if (date === todayStr) {
-      const minTime = new Date(now.getTime() + professional.minAdvanceHours * 60 * 60 * 1000);
-      return slots.filter((slot) => {
-        const [h, m]   = slot.split(':').map(Number);
-        const slotTime = new Date();
-        slotTime.setHours(h, m, 0, 0);
-        return slotTime >= minTime;
-      });
+    // Usa localNowMinutes (hora local del cliente) para no depender del UTC del servidor.
+    if (isToday) {
+      const minMinutes = (localNowMinutes ?? 0) + professional.minAdvanceHours * 60;
+      return slots.filter((slot) => this.timeStringToMinutes(slot) >= minMinutes);
     }
 
     return slots;
