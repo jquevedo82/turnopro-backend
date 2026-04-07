@@ -207,10 +207,17 @@ export class AppointmentsService {
 
   async complete(id: number, professionalId: number): Promise<Appointment> {
     const appt = await this.findOneByProfessional(id, professionalId);
-    if (appt.status !== AppointmentStatus.CONFIRMED && appt.status !== AppointmentStatus.RECONFIRMED) {
-      throw new BadRequestException('Solo se pueden completar citas confirmadas o reconfirmadas');
+    const completableStatuses = [
+      AppointmentStatus.CONFIRMED,
+      AppointmentStatus.RECONFIRMED,
+      AppointmentStatus.ARRIVED,
+      AppointmentStatus.IN_PROGRESS,
+    ];
+    if (!completableStatuses.includes(appt.status)) {
+      throw new BadRequestException('Solo se pueden completar citas confirmadas, con paciente llegado o en curso');
     }
     await this.repo.update(id, { status: AppointmentStatus.COMPLETED });
+    await this.professionalsService.bumpQueueUpdatedAt(professionalId);
     // Enviar email de gracias + rebooking al paciente
     const completed = await this.repo.findOne({ where: { id }, relations: ['client'] });
     if (completed) {
@@ -218,6 +225,86 @@ export class AppointmentsService {
       await this.notificationsService.notifyClientAppointmentCompleted(completed, completed.client, prof);
     }
     return this.findById(id);
+  }
+
+  // ── Sala de espera ────────────────────────────────────────────────────────
+
+  /** Marca un paciente como llegado (ARRIVED). Acepta desde CONFIRMED o RECONFIRMED. */
+  async markArrived(id: number, professionalId: number): Promise<Appointment> {
+    const appt = await this.findOneByProfessional(id, professionalId);
+    const arrivableStatuses = [AppointmentStatus.CONFIRMED, AppointmentStatus.RECONFIRMED];
+    if (!arrivableStatuses.includes(appt.status)) {
+      throw new BadRequestException('Solo se puede marcar como llegado desde CONFIRMADA o RECONFIRMADA');
+    }
+    await this.repo.update(id, {
+      status:    AppointmentStatus.ARRIVED,
+      arrivedAt: new Date(),
+    });
+    await this.professionalsService.bumpQueueUpdatedAt(professionalId);
+    return this.findById(id);
+  }
+
+  /** Inicia la consulta (IN_PROGRESS). Solo desde ARRIVED. */
+  async startConsultation(id: number, professionalId: number): Promise<Appointment> {
+    const appt = await this.findOneByProfessional(id, professionalId);
+    if (appt.status !== AppointmentStatus.ARRIVED) {
+      throw new BadRequestException('Solo se puede iniciar la consulta de un paciente que ya llegó');
+    }
+    await this.repo.update(id, { status: AppointmentStatus.IN_PROGRESS });
+    await this.professionalsService.bumpQueueUpdatedAt(professionalId);
+    return this.findById(id);
+  }
+
+  /**
+   * Cola del día para el panel del profesional/secretaria.
+   * Incluye todos los estados activos del día, ordenados por arrivedAt (llegados primero)
+   * y luego por startTime para los que aún no llegaron.
+   */
+  async getQueue(professionalId: number, date: string): Promise<Appointment[]> {
+    return this.repo.find({
+      where: [
+        { professionalId, date, status: AppointmentStatus.CONFIRMED },
+        { professionalId, date, status: AppointmentStatus.RECONFIRMED },
+        { professionalId, date, status: AppointmentStatus.ARRIVED },
+        { professionalId, date, status: AppointmentStatus.IN_PROGRESS },
+        { professionalId, date, status: AppointmentStatus.COMPLETED },
+      ],
+      relations: ['client', 'service'],
+      order: { arrivedAt: 'ASC', startTime: 'ASC' },
+    });
+  }
+
+  /**
+   * Cola pública para la pantalla de sala de espera /sala/:slug.
+   * Solo muestra pacientes ARRIVED e IN_PROGRESS.
+   * Anonimiza el nombre: "Juan García" → "Juan G."
+   */
+  async getPublicQueue(slug: string, date: string): Promise<{ position: number; name: string; status: string }[]> {
+    const professional = await this.professionalsService.findBySlug(slug);
+    const queue = await this.repo.find({
+      where: [
+        { professionalId: professional.id, date, status: AppointmentStatus.ARRIVED },
+        { professionalId: professional.id, date, status: AppointmentStatus.IN_PROGRESS },
+      ],
+      relations: ['client'],
+      order: { arrivedAt: 'ASC' },
+    });
+    return queue.map((appt, index) => {
+      const parts    = (appt.client?.name ?? 'Paciente').trim().split(/\s+/);
+      const first    = parts[0];
+      const lastInit = parts.length > 1 ? `${parts[parts.length - 1][0].toUpperCase()}.` : '';
+      return {
+        position: index + 1,
+        name:     lastInit ? `${first} ${lastInit}` : first,
+        status:   appt.status,
+      };
+    });
+  }
+
+  /** Version liviana para polling: devuelve solo el queueUpdatedAt del profesional. */
+  async getQueueVersion(slug: string): Promise<{ queueUpdatedAt: Date | null }> {
+    const professional = await this.professionalsService.findBySlug(slug);
+    return { queueUpdatedAt: professional.queueUpdatedAt ?? null };
   }
 
   /**

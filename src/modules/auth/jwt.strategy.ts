@@ -13,7 +13,8 @@ export interface JwtPayload {
   email:          string;
   role:           'superadmin' | 'professional' | 'secretary';
   // Solo presente en tokens de profesional
-  professionalId: number | null;
+  professionalId:   number | null;
+  professionalType?: string;   // vertical del profesional (health/beauty/wellness/other)
   // Solo presente en tokens de secretaria
   secretaryId?:    number;
   organizationId?: number;
@@ -36,10 +37,14 @@ export function getSecretaryId(user: JwtPayload): number {
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(config: ConfigService) {
+    const secret = config.get<string>('JWT_SECRET');
+    if (!secret) {
+      throw new Error('JWT_SECRET no está definido en las variables de entorno. La aplicación no puede arrancar sin él.');
+    }
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('JWT_SECRET') || 'fallback_secret_cambiar',
+      secretOrKey: secret,
     });
   }
 

@@ -13,9 +13,10 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 import {
-  IsString, IsEmail, IsOptional, IsNumber,
+  IsString, IsEmail, IsOptional, IsNumber, IsEnum,
   IsBoolean, IsDateString, MinLength, Matches, Min, Max,
 } from 'class-validator';
+import { ProfessionalType } from '../professional-type.enum';
 
 export class CreateProfessionalDto {
   // ── Datos obligatorios ───────────────────────────────────────────────────
@@ -42,6 +43,11 @@ export class CreateProfessionalDto {
   slug: string;
 
   // ── Datos opcionales del perfil ──────────────────────────────────────────
+  // Tipo de profesional — define terminología y features. Default: HEALTH
+  @IsEnum(ProfessionalType, { message: 'Tipo de profesional inválido' })
+  @IsOptional()
+  professionalType?: ProfessionalType;
+
   @IsString()
   @IsOptional()
   phone?: string;

@@ -80,6 +80,11 @@ export class Appointment {
   @Column({ name: 'reconfirmed_by', nullable: true })
   reconfirmedBy: string;
 
+  // ── Sala de espera ────────────────────────────────────────────────────────
+  // Timestamp de cuando el paciente fue marcado como llegado (ARRIVED)
+  @Column({ name: 'arrived_at', type: 'datetime', nullable: true })
+  arrivedAt: Date;
+
   // ── Notas ────────────────────────────────────────────────────────────────
   @Column({ type: 'text', nullable: true })
   notes: string; // Nota opcional del cliente al reservar

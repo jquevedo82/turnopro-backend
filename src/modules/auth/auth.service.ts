@@ -59,7 +59,9 @@ export class AuthService {
   async login(dto: LoginDto) {
     // ── 1. Verificar si es el superadmin ─────────────────────────────────────
     if (dto.email === process.env.SUPERADMIN_EMAIL) {
-      const validPass = await bcrypt.compare(dto.password, process.env.SUPERADMIN_HASH || '');
+      const superadminHash = process.env.SUPERADMIN_HASH;
+      if (!superadminHash) throw new Error('SUPERADMIN_HASH no está definido en las variables de entorno.');
+      const validPass = await bcrypt.compare(dto.password, superadminHash);
       if (!validPass) throw new UnauthorizedException('Credenciales incorrectas');
 
       return {
@@ -116,17 +118,19 @@ export class AuthService {
 
     return {
       accessToken: this.signToken({
-        sub:            professional.id,
-        email:          professional.email,
-        role:           'professional',
-        professionalId: professional.id,
+        sub:              professional.id,
+        email:            professional.email,
+        role:             'professional',
+        professionalId:   professional.id,
+        professionalType: professional.professionalType,
       }),
       user: {
-        id:    professional.id,
-        email: professional.email,
-        role:  'professional',
-        name:  professional.name,
-        slug:  professional.slug,
+        id:               professional.id,
+        email:            professional.email,
+        role:             'professional',
+        name:             professional.name,
+        slug:             professional.slug,
+        professionalType: professional.professionalType,
       },
     };
   }

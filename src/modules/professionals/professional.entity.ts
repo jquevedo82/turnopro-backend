@@ -24,6 +24,7 @@ import { ProfessionalSchedule } from '../schedule/professional-schedule.entity';
 import { ScheduleException }    from '../schedule/schedule-exception.entity';
 import { Client }               from '../clients/client.entity';
 import { Appointment }          from '../appointments/appointment.entity';
+import { ProfessionalType }     from './professional-type.enum';
 
 @Entity('professionals')
 export class Professional {
@@ -87,6 +88,17 @@ export class Professional {
   @Column({ type: 'json', nullable: true })
   gallery: string[];
 
+  // ── Tipo de profesional (vertical) ────────────────────────────────────────
+  // Define terminología (paciente/cliente, cita/turno/sesión) y features disponibles.
+  // Lo asigna el superadmin al crear el profesional. Default: HEALTH para compatibilidad.
+  @Column({
+    name: 'professional_type',
+    type: 'enum',
+    enum: ProfessionalType,
+    default: ProfessionalType.HEALTH,
+  })
+  professionalType: ProfessionalType;
+
   // ── Organización ───────────────────────────────────────────────────────────
   // Nullable: un profesional puede existir de forma completamente independiente.
   // El superadmin asigna/desvincula desde su panel.
@@ -144,6 +156,17 @@ export class Professional {
   // Horas para que una cita PENDING expire si no hay acción
   @Column({ name: 'pending_expiry_hours', default: 2 })
   pendingExpiryHours: number;
+
+  // ── Sala de espera ─────────────────────────────────────────────────────────
+  // Minutos de tolerancia para considerar a un paciente como llegado a tiempo.
+  // Ej: 15 → un paciente puede llegar hasta 15 min tarde y aún ser marcado ARRIVED.
+  @Column({ name: 'arrival_tolerance_minutes', default: 15 })
+  arrivalToleranceMinutes: number;
+
+  // Timestamp de la última acción en la cola del día (llegada, inicio, completar).
+  // La pantalla pública consulta este campo cada 30s — si cambió, recarga la cola.
+  @Column({ name: 'queue_updated_at', type: 'datetime', nullable: true })
+  queueUpdatedAt: Date;
 
   // ── Recuperación de contraseña ────────────────────────────────────────────
   @Column({ name: 'reset_token', length: 100, nullable: true })

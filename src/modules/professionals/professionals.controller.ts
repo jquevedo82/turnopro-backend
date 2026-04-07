@@ -14,9 +14,9 @@
  *   PATCH  /api/professionals/me       → Actualizar mi propio perfil
  */
 import {
-  Controller, Get, Post, Patch, Body, Param,
+  Controller, Get, Post, Patch, Body, Param, Query,
   UseGuards, ParseIntPipe, UseInterceptors,
-  UploadedFile, BadRequestException,
+  UploadedFile, BadRequestException, ForbiddenException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ProfessionalsService }   from './professionals.service';
@@ -29,7 +29,8 @@ import { RolesGuard }             from '../../common/guards/roles.guard';
 import { Roles }                  from '../../common/decorators/roles.decorator';
 import { Role }                   from '../../common/roles.enum';
 import { CurrentUser }            from '../../common/decorators/current-user.decorator';
-import { JwtPayload, getProfessionalId } from '../auth/jwt.strategy';
+import { JwtPayload, getProfessionalId, getSecretaryId } from '../auth/jwt.strategy';
+import { SecretariesService } from '../secretaries/secretaries.service';
 
 // ── Endpoints superadmin ──────────────────────────────────────────────────────
 @Controller('professionals')
@@ -39,6 +40,7 @@ export class ProfessionalsController {
     private readonly svc: ProfessionalsService,
     private readonly notificationsService: NotificationsService,
     private readonly storageService: StorageService,
+    private readonly secretariesService: SecretariesService,
   ) {}
 
   // ── Ruta /me ANTES de /:id para que Express no la interprete como id="me" ──
@@ -49,12 +51,21 @@ export class ProfessionalsController {
    * Ruta sin :id para evitar conflicto con ParseIntPipe.
    */
   @Post('share-link')
-  @Roles(Role.PROFESSIONAL)
+  @Roles(Role.PROFESSIONAL, Role.SECRETARY)
   async shareLink(
     @CurrentUser() user: JwtPayload,
     @Body('email') email: string,
+    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
   ) {
-    const professional = await this.svc.findOne(getProfessionalId(user));
+    let professionalId: number;
+    if ((user as any).role === 'secretary') {
+      if (!profId) throw new ForbiddenException('La secretaria debe indicar professionalId');
+      await this.secretariesService.assertAccess(getSecretaryId(user), profId);
+      professionalId = profId;
+    } else {
+      professionalId = getProfessionalId(user);
+    }
+    const professional = await this.svc.findOne(professionalId);
     await this.notificationsService.sendShareLink({
       toEmail:          email,
       professionalName: professional.name,

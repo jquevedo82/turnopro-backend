@@ -17,12 +17,14 @@ import { ProfessionalsService }    from './professionals.service';
 import { Professional }            from './professional.entity';
 import { NotificationsModule }     from '../notifications/notifications.module';
 import { StorageModule }           from '../storage/storage.module';
+import { SecretariesModule }       from '../secretaries/secretaries.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Professional]),
     NotificationsModule,
     StorageModule,
+    SecretariesModule,
     MulterModule.register({ storage: memoryStorage() }),
   ],
   controllers: [ProfessionalsController],

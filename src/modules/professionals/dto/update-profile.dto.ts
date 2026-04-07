@@ -5,12 +5,13 @@
  * Para agregar un campo editable: agregarlo aquí con su validador.
  */
 import { IsString, IsOptional, IsBoolean, IsInt, IsPositive, Min } from 'class-validator';
+import { IsPhoneAR_VE } from '../../../common/validators/phone.validator';
 
 export class UpdateProfileDto {
   @IsOptional() @IsString() name?:       string;
   @IsOptional() @IsString() profession?: string;
-  @IsOptional() @IsString() phone?:         string;
-  @IsOptional() @IsString() whatsappPhone?: string;
+  @IsOptional() @IsPhoneAR_VE() phone?:         string;
+  @IsOptional() @IsPhoneAR_VE() whatsappPhone?: string;
   @IsOptional() @IsString() slogan?:     string;
   @IsOptional() @IsString() bio?:        string;
   @IsOptional() @IsString() address?:    string;

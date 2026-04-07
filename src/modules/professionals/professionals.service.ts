@@ -117,6 +117,19 @@ export class ProfessionalsService {
   async update(id: number, dto: Partial<CreateProfessionalDto>): Promise<Professional> {
     await this.findOne(id); // Verifica que exista
 
+    // Verificar que el slug o email nuevo no estén en uso por OTRO profesional
+    if (dto.slug || dto.email) {
+      const conditions: any[] = [];
+      if (dto.slug)  conditions.push({ slug:  dto.slug });
+      if (dto.email) conditions.push({ email: dto.email });
+
+      const conflict = await this.repo.findOne({ where: conditions });
+      if (conflict && conflict.id !== id) {
+        const field = conflict.slug === dto.slug ? 'slug' : 'email';
+        throw new ConflictException(`El ${field} ya está en uso por otro profesional`);
+      }
+    }
+
     // Si se actualiza la contraseña, hashearla
     if (dto.password) {
       dto.password = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
@@ -166,5 +179,10 @@ export class ProfessionalsService {
 
   async updateAvatar(id: number, avatarUrl: string): Promise<void> {
     await this.repo.update(id, { avatar: avatarUrl });
+  }
+
+  /** Actualiza el timestamp de la cola — se llama cada vez que cambia el estado de un paciente en sala. */
+  async bumpQueueUpdatedAt(professionalId: number): Promise<void> {
+    await this.repo.update(professionalId, { queueUpdatedAt: new Date() });
   }
 }
