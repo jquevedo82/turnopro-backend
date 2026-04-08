@@ -68,9 +68,11 @@ export class SecretariesService {
     const resetToken  = crypto.randomBytes(32).toString('hex');
     const resetExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 horas
 
+    const defaultPassword = await bcrypt.hash('turnopro', 10);
+
     const secretary = this.secretaryRepo.create({
       ...dto,
-      password:         null as any, // se configura via link
+      password:         defaultPassword, // clave inicial: 'turnopro' — cambiar en primer ingreso
       resetToken,
       resetTokenExpiry: resetExpiry,
     });
