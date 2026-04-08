@@ -158,6 +158,16 @@ export class ProfessionalsController {
     return this.svc.update(id, dto);
   }
 
+  /**
+   * POST /api/professionals/:id/resend-welcome
+   * Regenera el reset token y reenvía el email de configuración de contraseña.
+   */
+  @Post(':id/resend-welcome')
+  @Roles(Role.SUPERADMIN)
+  async resendWelcome(@Param('id', ParseIntPipe) id: number) {
+    return this.svc.resendWelcome(id);
+  }
+
   @Post(':id/activate')
   @Roles(Role.SUPERADMIN)
   activate(

@@ -113,6 +113,22 @@ export class ProfessionalsService {
     return saved;
   }
 
+  /** Regenera el token de configuración y reenvía el email de bienvenida */
+  async resendWelcome(id: number): Promise<{ message: string }> {
+    const professional = await this.findOne(id);
+    const resetToken   = crypto.randomBytes(32).toString('hex');
+    const resetExpiry  = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await this.repo.update(id, { resetToken, resetTokenExpiry: resetExpiry });
+    await this.notifications.sendWelcomeProfessional({
+      toEmail:          professional.email,
+      professionalName: professional.name,
+      email:            professional.email,
+      resetToken,
+      slug:             professional.slug,
+    });
+    return { message: `Email de configuración reenviado a ${professional.email}` };
+  }
+
   /** Actualiza datos del profesional. Para campos restringidos: agregar validaciones aquí. */
   async update(id: number, dto: Partial<CreateProfessionalDto>): Promise<Professional> {
     await this.findOne(id); // Verifica que exista
