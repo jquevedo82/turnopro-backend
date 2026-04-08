@@ -34,7 +34,7 @@ async function resolveProffesionalId(
   secretariesService: SecretariesService,
   queryProfId?:       number,
 ): Promise<number> {
-  if ((user as any).role === 'secretary') {
+  if (user.role === Role.SECRETARY) {
     if (!queryProfId) {
       throw new ForbiddenException('La secretaria debe indicar professionalId como query param');
     }

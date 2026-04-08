@@ -24,13 +24,13 @@ export class ServicesService {
     });
   }
 
-    /** Retorna los servicios de un profesional */
-    findByProfessionalT(professionalId: number): Promise<Service[]> {
-      return this.repo.find({
-        where: { professionalId },
-        order: { name: 'ASC' },
-      });
-    }
+  /** Retorna todos los servicios de un profesional (incluye inactivos) */
+  findAllByProfessional(professionalId: number): Promise<Service[]> {
+    return this.repo.find({
+      where: { professionalId },
+      order: { name: 'ASC' },
+    });
+  }
 
   async findOne(id: number): Promise<Service> {
     const service = await this.repo.findOne({ where: { id } });

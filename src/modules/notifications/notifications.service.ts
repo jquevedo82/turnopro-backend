@@ -179,10 +179,10 @@ export class NotificationsService {
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
         <h2 style="color: #ef4444;">Tu cita fue cancelada</h2>
-        <p>Hola <strong>${client.name}</strong>,</p>
-        <p>Lamentablemente tu cita del <strong>${appointment.date}</strong> 
-        a las <strong>${appointment.startTime}hs</strong> con 
-        <strong>${professional.name}</strong> fue cancelada.</p>
+        <p>Hola <strong>${NotificationsService.esc(client.name)}</strong>,</p>
+        <p>Lamentablemente tu cita del <strong>${appointment.date}</strong>
+        a las <strong>${appointment.startTime}hs</strong> con
+        <strong>${NotificationsService.esc(professional.name)}</strong> fue cancelada.</p>
         <a href="${rebookLink}" style="display:inline-block; background:#1a56db; color:white; padding:12px 24px; border-radius:8px; text-decoration:none; margin-top:16px;">
           Reservar nueva cita
         </a>
@@ -217,6 +217,10 @@ export class NotificationsService {
     const apptUrl    = `${appUrl}/cita/${appointment.token}`;
     const panelUrl   = `${appUrl}/panel`;
     const statusText = professional.autoConfirm ? 'CONFIRMADA ✅' : 'PENDIENTE ⏳ (requiere tu aprobación)';
+    const cn         = NotificationsService.esc(client.name);
+    const cp         = NotificationsService.esc(client.phone);
+    const ce         = NotificationsService.esc(client.email);
+    const sn         = NotificationsService.esc(service.name);
 
     // ── Email al médico ───────────────────────────────────────────────────────
     const html = `
@@ -225,16 +229,16 @@ export class NotificationsService {
           <h1 style="color:#fff;margin:0;font-size:22px">📅 Nueva reserva recibida</h1>
         </div>
         <div style="background:#fff;padding:28px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
-          <p style="color:#374151;margin-top:0">Hola <strong>${professional.name}</strong>, tenés una nueva cita:</p>
+          <p style="color:#374151;margin-top:0">Hola <strong>${NotificationsService.esc(professional.name)}</strong>, tenés una nueva cita:</p>
           <table style="width:100%;border-collapse:collapse;margin:16px 0">
             <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280;width:40%">👤 Paciente</td>
-                <td style="padding:10px;border-bottom:1px solid #f3f4f6;font-weight:600">${client.name}</td></tr>
+                <td style="padding:10px;border-bottom:1px solid #f3f4f6;font-weight:600">${cn}</td></tr>
             <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">📱 Teléfono</td>
-                <td style="padding:10px;border-bottom:1px solid #f3f4f6">${client.phone}</td></tr>
+                <td style="padding:10px;border-bottom:1px solid #f3f4f6">${cp}</td></tr>
             <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">📧 Email</td>
-                <td style="padding:10px;border-bottom:1px solid #f3f4f6">${client.email}</td></tr>
+                <td style="padding:10px;border-bottom:1px solid #f3f4f6">${ce}</td></tr>
             <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">🩺 Servicio</td>
-                <td style="padding:10px;border-bottom:1px solid #f3f4f6">${service.name}</td></tr>
+                <td style="padding:10px;border-bottom:1px solid #f3f4f6">${sn}</td></tr>
             <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">📅 Fecha</td>
                 <td style="padding:10px;border-bottom:1px solid #f3f4f6">${appointment.date}</td></tr>
             <tr><td style="padding:10px;color:#6b7280">⏰ Hora</td>
@@ -332,6 +336,8 @@ export class NotificationsService {
     cancelledBy:  'client' | 'professional',
   ): Promise<void> {
     const rebookLink = `${this.appUrl}/${professional.slug}`;
+    const cn2        = NotificationsService.esc(client.name);
+    const cp2        = NotificationsService.esc(client.phone);
     const waPhone    = (professional.whatsappPhone || professional.phone || '').replace(/[^0-9+]/g, '');
     const waBtn      = waPhone
       ? `<a href="https://wa.me/${waPhone}?text=${encodeURIComponent('Hola ' + professional.name + ', quería consultar sobre mi cita cancelada.')}"
@@ -347,13 +353,13 @@ export class NotificationsService {
           <p style="color:#fca5a5;margin:4px 0 0">Cita cancelada</p>
         </div>
         <div style="background:#fff;padding:28px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
-          <p>Hola <strong>${client.name}</strong>,</p>
+          <p>Hola <strong>${cn2}</strong>,</p>
           <p>${cancelledBy === 'professional'
-            ? `Tu cita con <strong>${professional.name}</strong> fue cancelada por el profesional.`
-            : `Tu cita con <strong>${professional.name}</strong> fue cancelada correctamente.`
+            ? `Tu cita con <strong>${NotificationsService.esc(professional.name)}</strong> fue cancelada por el profesional.`
+            : `Tu cita con <strong>${NotificationsService.esc(professional.name)}</strong> fue cancelada correctamente.`
           }</p>
           <div style="background:#fff5f5;border-radius:8px;padding:16px;margin:16px 0;border:1px solid #fecaca">
-            <p style="margin:4px 0">🩺 <strong>Servicio:</strong> ${appointment.service?.name ?? ''}</p>
+            <p style="margin:4px 0">🩺 <strong>Servicio:</strong> ${NotificationsService.esc(appointment.service?.name ?? '')}</p>
             <p style="margin:4px 0">📅 <strong>Fecha:</strong> ${appointment.date}</p>
             <p style="margin:4px 0">⏰ <strong>Hora:</strong> ${appointment.startTime}hs</p>
           </div>
@@ -392,15 +398,15 @@ export class NotificationsService {
             <h1 style="color:#fff;margin:0;font-size:22px">❌ Cita cancelada por el paciente</h1>
           </div>
           <div style="background:#fff;padding:28px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
-            <p>Hola <strong>${professional.name}</strong>,</p>
-            <p><strong>${client.name}</strong> canceló su cita.</p>
+            <p>Hola <strong>${NotificationsService.esc(professional.name)}</strong>,</p>
+            <p><strong>${cn2}</strong> canceló su cita.</p>
             <table style="width:100%;border-collapse:collapse;margin:16px 0">
               <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280;width:40%">👤 Paciente</td>
-                  <td style="padding:10px;border-bottom:1px solid #f3f4f6;font-weight:600">${client.name}</td></tr>
+                  <td style="padding:10px;border-bottom:1px solid #f3f4f6;font-weight:600">${cn2}</td></tr>
               <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">📱 Teléfono</td>
-                  <td style="padding:10px;border-bottom:1px solid #f3f4f6">${client.phone}</td></tr>
+                  <td style="padding:10px;border-bottom:1px solid #f3f4f6">${cp2}</td></tr>
               <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">🩺 Servicio</td>
-                  <td style="padding:10px;border-bottom:1px solid #f3f4f6">${appointment.service?.name ?? ''}</td></tr>
+                  <td style="padding:10px;border-bottom:1px solid #f3f4f6">${NotificationsService.esc(appointment.service?.name ?? '')}</td></tr>
               <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">📅 Fecha</td>
                   <td style="padding:10px;border-bottom:1px solid #f3f4f6">${appointment.date}</td></tr>
               <tr><td style="padding:10px;color:#6b7280">⏰ Hora</td>
@@ -478,15 +484,15 @@ export class NotificationsService {
           <h1 style="color:#fff;margin:0;font-size:22px">✅ Paciente confirmó asistencia</h1>
         </div>
         <div style="background:#fff;padding:28px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
-          <p>Hola <strong>${professional.name}</strong>,</p>
-          <p><strong>${client.name}</strong> confirmó su asistencia para mañana.</p>
+          <p>Hola <strong>${NotificationsService.esc(professional.name)}</strong>,</p>
+          <p><strong>${NotificationsService.esc(client.name)}</strong> confirmó su asistencia para mañana.</p>
           <table style="width:100%;border-collapse:collapse;margin:16px 0">
             <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280;width:40%">👤 Paciente</td>
-                <td style="padding:10px;border-bottom:1px solid #f3f4f6;font-weight:600">${client.name}</td></tr>
+                <td style="padding:10px;border-bottom:1px solid #f3f4f6;font-weight:600">${NotificationsService.esc(client.name)}</td></tr>
             <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">📱 Teléfono</td>
-                <td style="padding:10px;border-bottom:1px solid #f3f4f6">${client.phone}</td></tr>
+                <td style="padding:10px;border-bottom:1px solid #f3f4f6">${NotificationsService.esc(client.phone)}</td></tr>
             <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">🩺 Servicio</td>
-                <td style="padding:10px;border-bottom:1px solid #f3f4f6">${service.name}</td></tr>
+                <td style="padding:10px;border-bottom:1px solid #f3f4f6">${NotificationsService.esc(service.name)}</td></tr>
             <tr><td style="padding:10px;color:#6b7280">⏰ Hora</td>
                 <td style="padding:10px;font-weight:600">${appointment.startTime}hs</td></tr>
           </table>
@@ -525,8 +531,8 @@ export class NotificationsService {
           <p style="color:#86efac;margin:4px 0 0">¡Gracias por tu visita!</p>
         </div>
         <div style="background:#fff;padding:28px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
-          <p>Hola <strong>${client.name}</strong>,</p>
-          <p>Gracias por tu visita con <strong>${professional.name}</strong>. Esperamos que haya sido de tu agrado.</p>
+          <p>Hola <strong>${NotificationsService.esc(client.name)}</strong>,</p>
+          <p>Gracias por tu visita con <strong>${NotificationsService.esc(professional.name)}</strong>. Esperamos que haya sido de tu agrado.</p>
           <p style="color:#6b7280;font-size:14px">¿Necesitás volver a consultar? Podés reservar tu próxima cita fácilmente:</p>
           <div style="text-align:center;margin:24px 0">
             <a href="${rebookLink}"
@@ -790,6 +796,17 @@ export class NotificationsService {
     }
   }
 
+  /** Escapa caracteres HTML en strings de usuarios no autenticados (nombres, teléfonos, emails) */
+  private static esc(s: string | null | undefined): string {
+    if (!s) return '';
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;');
+  }
+
   /** Registra cada notificación enviada en la tabla notifications_log */
   private async logNotification(
     appointmentId: number,
@@ -816,6 +833,9 @@ export class NotificationsService {
     const apptLabel       = data.appointmentLabel ?? 'Cita';
     const apptLabelLower  = apptLabel.toLowerCase();
     const greeting        = data.emailGreeting ?? 'Hola';
+    const clientName      = NotificationsService.esc(data.clientName);
+    const professionalName = NotificationsService.esc(data.professionalName);
+    const serviceName     = NotificationsService.esc(data.serviceName);
 
     return `
     <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; background: #f9fafb; padding: 24px; border-radius: 12px;">
@@ -824,16 +844,16 @@ export class NotificationsService {
         <p style="color: #93c5fd; margin: 4px 0 0;">${data.isPending ? 'Solicitud recibida' : `${apptLabel} confirmada ✅`}</p>
       </div>
       <div style="background: white; padding: 24px; border-radius: 0 0 10px 10px;">
-        <p>${greeting} <strong>${data.clientName}</strong>,</p>
+        <p>${greeting} <strong>${clientName}</strong>,</p>
         <p>${data.isPending
           ? `Tu solicitud de ${apptLabelLower} fue recibida. El profesional la confirmará a la brevedad.`
-          : `Tu ${apptLabelLower} con <strong>${data.professionalName}</strong> está confirmada.`
+          : `Tu ${apptLabelLower} con <strong>${professionalName}</strong> está confirmada.`
         }</p>
         <div style="background: #eff6ff; border-radius: 8px; padding: 16px; margin: 16px 0;">
-          <p style="margin:4px 0;">🗂 <strong>Servicio:</strong> ${data.serviceName}</p>
+          <p style="margin:4px 0;">🗂 <strong>Servicio:</strong> ${serviceName}</p>
           <p style="margin:4px 0;">📅 <strong>Fecha:</strong> ${dateStr}</p>
           <p style="margin:4px 0;">⏰ <strong>Hora:</strong> ${data.time}hs</p>
-          <p style="margin:4px 0;">👤 <strong>Profesional:</strong> ${data.professionalName}</p>
+          <p style="margin:4px 0;">👤 <strong>Profesional:</strong> ${professionalName}</p>
         </div>
         <a href="${data.managementLink}" style="display:block; background:#1a56db; color:white; padding:13px; border-radius:8px; text-decoration:none; text-align:center; margin-bottom:10px;">
           👁 Ver mi ${apptLabelLower}

@@ -17,8 +17,9 @@ export class AvailabilityController {
     @Param('professionalId', ParseIntPipe) professionalId: number,
     @Param('date') date: string,
     @Query('serviceId') serviceId?: number,
+    @Query('localNow') localNow?: string,   // HH:mm hora local del cliente — evita desfase UTC
   ) {
-    return this.svc.getAvailableSlots(professionalId, date, serviceId);
+    return this.svc.getAvailableSlots(professionalId, date, serviceId, localNow);
   }
 
   @Public()

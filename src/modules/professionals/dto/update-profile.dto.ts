@@ -26,6 +26,7 @@ export class UpdateProfileDto {
   @IsOptional() @IsInt() @Min(0)       minAdvanceHours?:     number;
   @IsOptional() @IsInt() @IsPositive() maxAdvanceDays?:      number;
   @IsOptional() @IsInt() @Min(0)       cancellationHours?:   number;
-  @IsOptional() @IsInt() @Min(0)       pendingExpiryHours?:  number;
-  @IsOptional() @IsBoolean()           autoConfirm?:         boolean;
+  @IsOptional() @IsInt() @Min(0)       pendingExpiryHours?:       number;
+  @IsOptional() @IsInt() @Min(0)       arrivalToleranceMinutes?:  number;
+  @IsOptional() @IsBoolean()           autoConfirm?:              boolean;
 }

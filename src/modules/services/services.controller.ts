@@ -39,7 +39,7 @@ export class ServicesController {
   @Get('myTodos')
   @Roles(Role.PROFESSIONAL)
   findMyT(@CurrentUser() user: JwtPayload) {
-    return this.svc.findByProfessionalT(getProfessionalId(user));
+    return this.svc.findAllByProfessional(getProfessionalId(user));
   }
 
   @Post()

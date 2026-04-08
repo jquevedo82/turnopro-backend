@@ -3,10 +3,11 @@
  * Excepciones a la plantilla semanal. Tienen prioridad sobre los horarios regulares.
  * Usos: feriados (isClosed=true), horarios especiales (isClosed=false + custom times)
  */
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { Professional } from '../professionals/professional.entity';
 
 @Entity('schedule_exceptions')
+@Index('IDX_schedule_exception_prof_date', ['professionalId', 'date'])
 export class ScheduleException {
   @PrimaryGeneratedColumn()
   id: number;
