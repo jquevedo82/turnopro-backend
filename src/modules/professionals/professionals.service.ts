@@ -18,6 +18,7 @@ import { Repository }       from 'typeorm';
 import * as bcrypt          from 'bcrypt';
 import * as crypto          from 'crypto';
 import { Professional }     from './professional.entity';
+import { Secretary }       from '../secretaries/secretary.entity';
 import { CreateProfessionalDto }  from './dto/create-professional.dto';
 import { NotificationsService }   from '../notifications/notifications.service';
 
@@ -30,6 +31,10 @@ export class ProfessionalsService {
   constructor(
     @InjectRepository(Professional)
     private readonly repo:          Repository<Professional>,
+
+    @InjectRepository(Secretary)
+    private readonly secretaryRepo: Repository<Secretary>,
+
     private readonly notifications: NotificationsService,
   ) {}
 
@@ -63,12 +68,18 @@ export class ProfessionalsService {
    * Para enviar email de bienvenida: agregar llamada a NotificationsService aquí.
    */
   async create(dto: CreateProfessionalDto): Promise<Professional> {
-    // Verificar que el email y slug no estén en uso
+    // Verificar que el email y slug no estén en uso en professionals
     const existing = await this.repo.findOne({
       where: [{ email: dto.email }, { slug: dto.slug }],
     });
     if (existing) {
       throw new ConflictException('El email o slug ya está en uso');
+    }
+
+    // Verificar que el email no pertenezca a una secretaria
+    const existingSec = await this.secretaryRepo.findOne({ where: { email: dto.email } });
+    if (existingSec) {
+      throw new ConflictException(`El email ${dto.email} ya está registrado como secretaria`);
     }
 
     // Contraseña inicial fija: 'turnopro' — el profesional la cambia en su primer ingreso
@@ -143,6 +154,14 @@ export class ProfessionalsService {
       if (conflict && conflict.id !== id) {
         const field = conflict.slug === dto.slug ? 'slug' : 'email';
         throw new ConflictException(`El ${field} ya está en uso por otro profesional`);
+      }
+    }
+
+    // Verificar que el email nuevo no pertenezca a una secretaria
+    if (dto.email) {
+      const existingSec = await this.secretaryRepo.findOne({ where: { email: dto.email } });
+      if (existingSec) {
+        throw new ConflictException(`El email ${dto.email} ya está registrado como secretaria`);
       }
     }
 

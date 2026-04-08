@@ -15,13 +15,14 @@ import { memoryStorage }  from 'multer';
 import { ProfessionalsController } from './professionals.controller';
 import { ProfessionalsService }    from './professionals.service';
 import { Professional }            from './professional.entity';
+import { Secretary }               from '../secretaries/secretary.entity';
 import { NotificationsModule }     from '../notifications/notifications.module';
 import { StorageModule }           from '../storage/storage.module';
 import { SecretariesModule }       from '../secretaries/secretaries.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Professional]),
+    TypeOrmModule.forFeature([Professional, Secretary]),
     NotificationsModule,
     StorageModule,
     SecretariesModule,

@@ -21,8 +21,10 @@ import {
   Controller, Get, Post, Patch,
   Body, Param, ParseIntPipe, UseGuards,
 } from '@nestjs/common';
-import { SecretariesService }   from './secretaries.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import { SecretariesService }    from './secretaries.service';
+import { NotificationsService }  from '../notifications/notifications.service';
+import { CreateSecretaryDto }    from './dto/create-secretary.dto';
+import { UpdateSecretaryDto }    from './dto/update-secretary.dto';
 import { JwtAuthGuard }         from '../../common/guards/jwt-auth.guard';
 import { RolesGuard }           from '../../common/guards/roles.guard';
 import { Roles }                from '../../common/decorators/roles.decorator';
@@ -76,7 +78,7 @@ export class SecretariesController {
   @Post()
   async create(
     @Param('orgId', ParseIntPipe) orgId: number,
-    @Body() dto: { name: string; email: string; phone?: string },
+    @Body() dto: CreateSecretaryDto,
   ) {
     const { secretary, resetToken } = await this.svc.create({
       ...dto,
@@ -100,11 +102,22 @@ export class SecretariesController {
    * Body: { name?, phone? }
    */
   @Patch(':id')
-  update(
+  async update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: Partial<{ name: string; phone: string }>,
+    @Body() dto: UpdateSecretaryDto,
   ) {
-    return this.svc.update(id, dto);
+    const { secretary, emailChanged } = await this.svc.update(id, dto);
+
+    if (emailChanged) {
+      await this.notifications.sendEmailChanged({
+        toEmail:  secretary.email,
+        name:     secretary.name,
+        newEmail: secretary.email,
+        role:     'secretaria',
+      });
+    }
+
+    return secretary;
   }
 
   /**
