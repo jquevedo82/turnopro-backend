@@ -60,17 +60,22 @@ export class SecretariesService {
     phone?:         string;
     organizationId: number;
   }): Promise<{ secretary: Secretary; resetToken: string }> {
-    // Email único en toda la tabla
-    const existing = await this.secretaryRepo.findOne({ where: { email: dto.email } });
-    if (existing) throw new ConflictException(`El email ${dto.email} ya está registrado`);
+    // Email único entre secretarias y profesionales
+    const existingSec  = await this.secretaryRepo.findOne({ where: { email: dto.email } });
+    if (existingSec) throw new ConflictException(`El email ${dto.email} ya está registrado como secretaria`);
+
+    const existingProf = await this.professionalRepo.findOne({ where: { email: dto.email } });
+    if (existingProf) throw new ConflictException(`El email ${dto.email} ya está registrado como profesional`);
 
     // Generar token para que configure su contraseña via email
     const resetToken  = crypto.randomBytes(32).toString('hex');
     const resetExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 horas
 
+    const defaultPassword = await bcrypt.hash('turnopro', 10);
+
     const secretary = this.secretaryRepo.create({
       ...dto,
-      password:         null as any, // se configura via link
+      password:         defaultPassword, // clave inicial: 'turnopro' — cambiar en primer ingreso
       resetToken,
       resetTokenExpiry: resetExpiry,
     });
@@ -79,15 +84,31 @@ export class SecretariesService {
     return { secretary: saved, resetToken };
   }
 
-  /** Actualiza datos de una secretaria (superadmin) */
+  /**
+   * Actualiza datos de una secretaria (superadmin).
+   * Si se cambia el email, valida que no esté en uso por otra secretaria ni profesional.
+   * Retorna { secretary, emailChanged } para que el controller envíe la notificación.
+   */
   async update(id: number, dto: Partial<{
     name:     string;
+    email:    string;
     phone:    string;
     isActive: boolean;
-  }>): Promise<Secretary> {
+  }>): Promise<{ secretary: Secretary; emailChanged: boolean }> {
     const secretary = await this.findOne(id);
+
+    if (dto.email && dto.email !== secretary.email) {
+      const existingSec  = await this.secretaryRepo.findOne({ where: { email: dto.email } });
+      if (existingSec)  throw new ConflictException(`El email ${dto.email} ya está registrado como secretaria`);
+
+      const existingProf = await this.professionalRepo.findOne({ where: { email: dto.email } });
+      if (existingProf) throw new ConflictException(`El email ${dto.email} ya está registrado como profesional`);
+    }
+
+    const emailChanged = !!dto.email && dto.email !== secretary.email;
     Object.assign(secretary, dto);
-    return this.secretaryRepo.save(secretary);
+    const saved = await this.secretaryRepo.save(secretary);
+    return { secretary: saved, emailChanged };
   }
 
   /** Activa o desactiva una secretaria */
