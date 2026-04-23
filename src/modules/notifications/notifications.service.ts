@@ -116,13 +116,14 @@ export class NotificationsService {
   ): string {
     const confirmLink = `${this.appUrl}/cita/${appointment.token}/reconfirmar`;
     const cancelLink  = `${this.appUrl}/cita/${appointment.token}/cancelar`;
+    const vc          = getVerticalConfig(professional.professionalType);
 
     // Formatear fecha legible
     const dateObj  = new Date(appointment.date + 'T12:00:00');
     const dateStr  = dateObj.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
 
     const message = encodeURIComponent(
-      `Hola ${clientName}! 👋 Te recordamos tu cita mañana:\n\n` +
+      `Hola ${clientName}! 👋 Te recordamos tu ${vc.appointmentLabel.toLowerCase()} mañana:\n\n` +
       `📅 ${dateStr}\n` +
       `⏰ ${appointment.startTime}hs\n` +
       `👨‍⚕️ ${professional.name}\n\n` +
@@ -148,6 +149,7 @@ export class NotificationsService {
   ): Promise<void> {
     const managementLink = `${this.appUrl}/cita/${appointment.token}`;
     const cancelLink     = `${this.appUrl}/cita/${appointment.token}/cancelar`;
+    const vc             = getVerticalConfig(professional.professionalType);
 
     const html = this.buildConfirmationTemplate({
       clientName:       client.name,
@@ -158,11 +160,14 @@ export class NotificationsService {
       managementLink,
       cancelLink,
       isPending:        false,
+      clientLabel:      vc.clientLabel,
+      appointmentLabel: vc.appointmentLabel,
+      emailGreeting:    vc.emailGreeting,
     });
 
     await this.sendEmail({
       to:      client.email,
-      subject: `Recordatorio: tu cita con ${professional.name} 📅`,
+      subject: `Recordatorio: tu ${vc.appointmentLabel.toLowerCase()} con ${professional.name} 📅`,
       html,
     });
 
@@ -176,21 +181,23 @@ export class NotificationsService {
     professional: Professional,
   ): Promise<void> {
     const rebookLink = `${this.appUrl}/${professional.slug}`;
+    const vc         = getVerticalConfig(professional.professionalType);
+    const apptL      = vc.appointmentLabel.toLowerCase();
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
-        <h2 style="color: #ef4444;">Tu cita fue cancelada</h2>
-        <p>Hola <strong>${NotificationsService.esc(client.name)}</strong>,</p>
-        <p>Lamentablemente tu cita del <strong>${appointment.date}</strong>
+        <h2 style="color: #ef4444;">Tu ${apptL} fue cancelada</h2>
+        <p>${vc.emailGreeting} <strong>${NotificationsService.esc(client.name)}</strong>,</p>
+        <p>Lamentablemente tu ${apptL} del <strong>${appointment.date}</strong>
         a las <strong>${appointment.startTime}hs</strong> con
         <strong>${NotificationsService.esc(professional.name)}</strong> fue cancelada.</p>
         <a href="${rebookLink}" style="display:inline-block; background:#1a56db; color:white; padding:12px 24px; border-radius:8px; text-decoration:none; margin-top:16px;">
-          Reservar nueva cita
+          Reservar nueva ${apptL}
         </a>
       </div>`;
 
     await this.sendEmail({
       to:      client.email,
-      subject: `Tu cita con ${professional.name} fue cancelada`,
+      subject: `Tu ${apptL} con ${professional.name} fue cancelada`,
       html,
     });
 
@@ -216,28 +223,30 @@ export class NotificationsService {
     const appUrl     = this.appUrl;
     const apptUrl    = `${appUrl}/cita/${appointment.token}`;
     const panelUrl   = `${appUrl}/panel`;
+    const vc         = getVerticalConfig(professional.professionalType);
+    const apptL      = vc.appointmentLabel.toLowerCase();
     const statusText = professional.autoConfirm ? 'CONFIRMADA ✅' : 'PENDIENTE ⏳ (requiere tu aprobación)';
     const cn         = NotificationsService.esc(client.name);
     const cp         = NotificationsService.esc(client.phone);
     const ce         = NotificationsService.esc(client.email);
     const sn         = NotificationsService.esc(service.name);
 
-    // ── Email al médico ───────────────────────────────────────────────────────
+    // ── Email al profesional ──────────────────────────────────────────────────
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#f9fafb;padding:20px">
         <div style="background:#0f2342;border-radius:12px 12px 0 0;padding:24px;text-align:center">
-          <h1 style="color:#fff;margin:0;font-size:22px">📅 Nueva reserva recibida</h1>
+          <h1 style="color:#fff;margin:0;font-size:22px">📅 Nueva ${apptL} recibida</h1>
         </div>
         <div style="background:#fff;padding:28px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
-          <p style="color:#374151;margin-top:0">Hola <strong>${NotificationsService.esc(professional.name)}</strong>, tenés una nueva cita:</p>
+          <p style="color:#374151;margin-top:0">Hola <strong>${NotificationsService.esc(professional.name)}</strong>, tenés una nueva ${apptL}:</p>
           <table style="width:100%;border-collapse:collapse;margin:16px 0">
-            <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280;width:40%">👤 Paciente</td>
+            <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280;width:40%">👤 ${vc.clientLabel}</td>
                 <td style="padding:10px;border-bottom:1px solid #f3f4f6;font-weight:600">${cn}</td></tr>
             <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">📱 Teléfono</td>
                 <td style="padding:10px;border-bottom:1px solid #f3f4f6">${cp}</td></tr>
             <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">📧 Email</td>
                 <td style="padding:10px;border-bottom:1px solid #f3f4f6">${ce}</td></tr>
-            <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">🩺 Servicio</td>
+            <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">🗂 Servicio</td>
                 <td style="padding:10px;border-bottom:1px solid #f3f4f6">${sn}</td></tr>
             <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">📅 Fecha</td>
                 <td style="padding:10px;border-bottom:1px solid #f3f4f6">${appointment.date}</td></tr>
@@ -252,9 +261,9 @@ export class NotificationsService {
               Ver en mi panel →
             </a>
             ${professional.whatsappPhone || client.phone ? `
-            <a href="https://wa.me/${(client.phone || '').replace(/[^0-9+]/g, '')}?text=${encodeURIComponent('Hola ' + client.name + '! Te confirmo tu cita del ' + appointment.date + ' a las ' + appointment.startTime + 'hs.')}"
+            <a href="https://wa.me/${(client.phone || '').replace(/[^0-9+]/g, '')}?text=${encodeURIComponent('Hola ' + client.name + '! Te confirmo tu ' + apptL + ' del ' + appointment.date + ' a las ' + appointment.startTime + 'hs.')}"
                style="display:block;background:#25d366;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold">
-              💬 Escribir al paciente por WhatsApp
+              💬 Escribir al ${vc.clientLabel.toLowerCase()} por WhatsApp
             </a>` : ''}
           </div>
         </div>
@@ -264,7 +273,7 @@ export class NotificationsService {
     try {
       await this.sendEmail({
         to:      professional.publicEmail || professional.email,
-        subject: `Nueva cita: ${client.name} — ${appointment.date} ${appointment.startTime}`,
+        subject: `Nueva ${apptL}: ${client.name} — ${appointment.date} ${appointment.startTime}`,
         html,
       });
       await this.logNotification(appointment.id, 'email', 'new_appointment_pro');
@@ -302,6 +311,7 @@ export class NotificationsService {
   ): Promise<void> {
     const managementLink = `${this.appUrl}/cita/${appointment.token}`;
     const cancelLink     = `${this.appUrl}/cita/${appointment.token}/cancelar`;
+    const vc             = getVerticalConfig(professional.professionalType);
     const html = this.buildConfirmationTemplate({
       clientName:        client.name,
       professionalName:  professional.name,
@@ -313,11 +323,14 @@ export class NotificationsService {
       managementLink,
       cancelLink,
       isPending:         false,
+      clientLabel:       vc.clientLabel,
+      appointmentLabel:  vc.appointmentLabel,
+      emailGreeting:     vc.emailGreeting,
     });
     try {
       await this.sendEmail({
         to:      client.email,
-        subject: `✅ Tu cita con ${professional.name} fue confirmada`,
+        subject: `✅ Tu ${vc.appointmentLabel.toLowerCase()} con ${professional.name} fue confirmada`,
         html,
       });
       await this.logNotification(appointment.id, 'email', 'confirmed_by_pro');
@@ -336,11 +349,13 @@ export class NotificationsService {
     cancelledBy:  'client' | 'professional',
   ): Promise<void> {
     const rebookLink = `${this.appUrl}/${professional.slug}`;
+    const vc2        = getVerticalConfig(professional.professionalType);
+    const apptL2     = vc2.appointmentLabel.toLowerCase();
     const cn2        = NotificationsService.esc(client.name);
     const cp2        = NotificationsService.esc(client.phone);
     const waPhone    = (professional.whatsappPhone || professional.phone || '').replace(/[^0-9+]/g, '');
     const waBtn      = waPhone
-      ? `<a href="https://wa.me/${waPhone}?text=${encodeURIComponent('Hola ' + professional.name + ', quería consultar sobre mi cita cancelada.')}"
+      ? `<a href="https://wa.me/${waPhone}?text=${encodeURIComponent('Hola ' + professional.name + ', quería consultar sobre mi ' + apptL2 + ' cancelada.')}"
            style="display:block;background:#25d366;color:#fff;padding:11px;border-radius:8px;text-decoration:none;text-align:center;margin-bottom:10px;font-weight:bold;">
           💬 Escribir al profesional por WhatsApp
         </a>`
@@ -350,23 +365,23 @@ export class NotificationsService {
       <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#f9fafb;padding:20px">
         <div style="background:#0f2342;border-radius:12px 12px 0 0;padding:24px;text-align:center">
           <h1 style="color:#fff;margin:0;font-size:22px">TurnoPro</h1>
-          <p style="color:#fca5a5;margin:4px 0 0">Cita cancelada</p>
+          <p style="color:#fca5a5;margin:4px 0 0">${vc2.appointmentLabel} cancelada</p>
         </div>
         <div style="background:#fff;padding:28px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
-          <p>Hola <strong>${cn2}</strong>,</p>
+          <p>${vc2.emailGreeting} <strong>${cn2}</strong>,</p>
           <p>${cancelledBy === 'professional'
-            ? `Tu cita con <strong>${NotificationsService.esc(professional.name)}</strong> fue cancelada por el profesional.`
-            : `Tu cita con <strong>${NotificationsService.esc(professional.name)}</strong> fue cancelada correctamente.`
+            ? `Tu ${apptL2} con <strong>${NotificationsService.esc(professional.name)}</strong> fue cancelada por el profesional.`
+            : `Tu ${apptL2} con <strong>${NotificationsService.esc(professional.name)}</strong> fue cancelada correctamente.`
           }</p>
           <div style="background:#fff5f5;border-radius:8px;padding:16px;margin:16px 0;border:1px solid #fecaca">
-            <p style="margin:4px 0">🩺 <strong>Servicio:</strong> ${NotificationsService.esc(appointment.service?.name ?? '')}</p>
+            <p style="margin:4px 0">🗂 <strong>Servicio:</strong> ${NotificationsService.esc(appointment.service?.name ?? '')}</p>
             <p style="margin:4px 0">📅 <strong>Fecha:</strong> ${appointment.date}</p>
             <p style="margin:4px 0">⏰ <strong>Hora:</strong> ${appointment.startTime}hs</p>
           </div>
           ${waBtn}
           <a href="${rebookLink}"
              style="display:block;background:#2563eb;color:#fff;padding:12px;border-radius:8px;text-decoration:none;text-align:center;font-weight:bold">
-            Reservar nueva cita →
+            Reservar nueva ${apptL2} →
           </a>
         </div>
       </div>
@@ -374,7 +389,7 @@ export class NotificationsService {
     try {
       await this.sendEmail({
         to:      client.email,
-        subject: `Tu cita con ${professional.name} fue cancelada`,
+        subject: `Tu ${apptL2} con ${professional.name} fue cancelada`,
         html,
       });
       await this.logNotification(appointment.id, 'email', 'cancelled');
@@ -395,17 +410,17 @@ export class NotificationsService {
       const proHtml   = `
         <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#f9fafb;padding:20px">
           <div style="background:#0f2342;border-radius:12px 12px 0 0;padding:24px;text-align:center">
-            <h1 style="color:#fff;margin:0;font-size:22px">❌ Cita cancelada por el paciente</h1>
+            <h1 style="color:#fff;margin:0;font-size:22px">❌ ${vc2.appointmentLabel} cancelada por el/la ${vc2.clientLabel.toLowerCase()}</h1>
           </div>
           <div style="background:#fff;padding:28px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
             <p>Hola <strong>${NotificationsService.esc(professional.name)}</strong>,</p>
-            <p><strong>${cn2}</strong> canceló su cita.</p>
+            <p><strong>${cn2}</strong> canceló su ${apptL2}.</p>
             <table style="width:100%;border-collapse:collapse;margin:16px 0">
-              <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280;width:40%">👤 Paciente</td>
+              <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280;width:40%">👤 ${vc2.clientLabel}</td>
                   <td style="padding:10px;border-bottom:1px solid #f3f4f6;font-weight:600">${cn2}</td></tr>
               <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">📱 Teléfono</td>
                   <td style="padding:10px;border-bottom:1px solid #f3f4f6">${cp2}</td></tr>
-              <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">🩺 Servicio</td>
+              <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">🗂 Servicio</td>
                   <td style="padding:10px;border-bottom:1px solid #f3f4f6">${NotificationsService.esc(appointment.service?.name ?? '')}</td></tr>
               <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">📅 Fecha</td>
                   <td style="padding:10px;border-bottom:1px solid #f3f4f6">${appointment.date}</td></tr>
@@ -423,7 +438,7 @@ export class NotificationsService {
       try {
         await this.sendEmail({
           to:      professional.publicEmail || professional.email,
-          subject: `❌ ${client.name} canceló su cita del ${appointment.date}`,
+          subject: `❌ ${client.name} canceló su ${apptL2} del ${appointment.date}`,
           html:    proHtml,
         });
         await this.logNotification(appointment.id, 'email', 'cancelled_notify_pro');
@@ -444,6 +459,7 @@ export class NotificationsService {
   ): Promise<void> {
     const managementLink = `${this.appUrl}/cita/${appointment.token}`;
     const cancelLink     = `${this.appUrl}/cita/${appointment.token}/cancelar`;
+    const vc             = getVerticalConfig(professional.professionalType);
     const html = this.buildConfirmationTemplate({
       clientName:        client.name,
       professionalName:  professional.name,
@@ -455,11 +471,14 @@ export class NotificationsService {
       managementLink,
       cancelLink,
       isPending:         false,
+      clientLabel:       vc.clientLabel,
+      appointmentLabel:  vc.appointmentLabel,
+      emailGreeting:     vc.emailGreeting,
     });
     try {
       await this.sendEmail({
         to:      client.email,
-        subject: `⏰ Recordatorio: tu cita con ${professional.name} es mañana`,
+        subject: `⏰ Recordatorio: tu ${vc.appointmentLabel.toLowerCase()} con ${professional.name} es mañana`,
         html,
       });
       await this.logNotification(appointment.id, 'email', 'auto_reminder');
@@ -478,20 +497,22 @@ export class NotificationsService {
     service:      Service,
   ): Promise<void> {
     const panelUrl = `${this.appUrl}/panel`;
+    const vc       = getVerticalConfig(professional.professionalType);
+    const apptL    = vc.appointmentLabel.toLowerCase();
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#f9fafb;padding:20px">
         <div style="background:#0f2342;border-radius:12px 12px 0 0;padding:24px;text-align:center">
-          <h1 style="color:#fff;margin:0;font-size:22px">✅ Paciente confirmó asistencia</h1>
+          <h1 style="color:#fff;margin:0;font-size:22px">✅ ${vc.clientLabel} confirmó asistencia</h1>
         </div>
         <div style="background:#fff;padding:28px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
           <p>Hola <strong>${NotificationsService.esc(professional.name)}</strong>,</p>
           <p><strong>${NotificationsService.esc(client.name)}</strong> confirmó su asistencia para mañana.</p>
           <table style="width:100%;border-collapse:collapse;margin:16px 0">
-            <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280;width:40%">👤 Paciente</td>
+            <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280;width:40%">👤 ${vc.clientLabel}</td>
                 <td style="padding:10px;border-bottom:1px solid #f3f4f6;font-weight:600">${NotificationsService.esc(client.name)}</td></tr>
             <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">📱 Teléfono</td>
                 <td style="padding:10px;border-bottom:1px solid #f3f4f6">${NotificationsService.esc(client.phone)}</td></tr>
-            <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">🩺 Servicio</td>
+            <tr><td style="padding:10px;border-bottom:1px solid #f3f4f6;color:#6b7280">🗂 Servicio</td>
                 <td style="padding:10px;border-bottom:1px solid #f3f4f6">${NotificationsService.esc(service.name)}</td></tr>
             <tr><td style="padding:10px;color:#6b7280">⏰ Hora</td>
                 <td style="padding:10px;font-weight:600">${appointment.startTime}hs</td></tr>
@@ -506,7 +527,7 @@ export class NotificationsService {
     try {
       await this.sendEmail({
         to:      professional.publicEmail || professional.email,
-        subject: `✅ ${client.name} confirmó su cita del ${appointment.date}`,
+        subject: `✅ ${client.name} confirmó su ${apptL} del ${appointment.date}`,
         html,
       });
       await this.logNotification(appointment.id, 'email', 'reconfirmed_by_client');
@@ -524,6 +545,8 @@ export class NotificationsService {
     professional: Professional,
   ): Promise<void> {
     const rebookLink = `${this.appUrl}/${professional.slug}`;
+    const vc         = getVerticalConfig(professional.professionalType);
+    const apptL      = vc.appointmentLabel.toLowerCase();
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#f9fafb;padding:20px">
         <div style="background:#0f2342;border-radius:12px 12px 0 0;padding:24px;text-align:center">
@@ -531,13 +554,13 @@ export class NotificationsService {
           <p style="color:#86efac;margin:4px 0 0">¡Gracias por tu visita!</p>
         </div>
         <div style="background:#fff;padding:28px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
-          <p>Hola <strong>${NotificationsService.esc(client.name)}</strong>,</p>
+          <p>${vc.emailGreeting} <strong>${NotificationsService.esc(client.name)}</strong>,</p>
           <p>Gracias por tu visita con <strong>${NotificationsService.esc(professional.name)}</strong>. Esperamos que haya sido de tu agrado.</p>
-          <p style="color:#6b7280;font-size:14px">¿Necesitás volver a consultar? Podés reservar tu próxima cita fácilmente:</p>
+          <p style="color:#6b7280;font-size:14px">¿Necesitás otra ${apptL}? Podés reservar fácilmente:</p>
           <div style="text-align:center;margin:24px 0">
             <a href="${rebookLink}"
                style="background:#2563eb;color:#fff;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:bold;font-size:16px;display:inline-block">
-              Reservar próxima cita →
+              Reservar próxima ${apptL} →
             </a>
           </div>
           <p style="color:#9ca3af;font-size:12px;text-align:center">${professional.name} · TurnoPro</p>
