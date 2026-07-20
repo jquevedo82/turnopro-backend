@@ -21,10 +21,15 @@ import { Professional }     from './professional.entity';
 import { Secretary }       from '../secretaries/secretary.entity';
 import { CreateProfessionalDto }  from './dto/create-professional.dto';
 import { NotificationsService }   from '../notifications/notifications.service';
+import { resolveTzOffsetHours, localDateString, addDays, dateOnly } from '../../common/utils/timezone';
 
 // Rondas de salt para bcrypt. A mayor número, más seguro pero más lento.
 // Para cambiar: modificar este valor. Recomendado entre 10 y 12.
 const BCRYPT_ROUNDS = 10;
+
+// Días de gracia después de subscriptionEnd antes de bloquear nuevas reservas.
+// Para cambiar: variable de entorno SUBSCRIPTION_GRACE_DAYS.
+const SUBSCRIPTION_GRACE_DAYS = parseInt(process.env.SUBSCRIPTION_GRACE_DAYS ?? '3', 10);
 
 @Injectable()
 export class ProfessionalsService {
@@ -195,6 +200,26 @@ export class ProfessionalsService {
   async deactivate(id: number): Promise<Professional> {
     await this.repo.update(id, { isActive: false });
     return this.findOne(id);
+  }
+
+  /**
+   * True si venció la suscripción (subscriptionEnd + SUBSCRIPTION_GRACE_DAYS ya pasó),
+   * calculado en la fecha-calendario LOCAL del profesional (huso resuelto por prefijo
+   * de teléfono +54/+58) — no en la fecha del servidor (Render corre en UTC). Mismo
+   * motivo que el fix de availability.service.ts: comparar por fecha del servidor
+   * corta el acceso hasta 4hs antes/después de lo que corresponde en Argentina/Venezuela.
+   *
+   * No bloquea nada por sí sola — no reemplaza isActive (que sigue siendo el
+   * apagado manual del superadmin). Hoy solo se usa para bloquear NUEVAS reservas
+   * (ver AppointmentsService.create()); el panel, la agenda existente y el login
+   * siguen funcionando aunque haya vencido — decisión de producto 2026-07-20.
+   */
+  isSubscriptionExpired(professional: Professional): boolean {
+    if (!professional.subscriptionEnd) return false;
+    const offset     = resolveTzOffsetHours(professional.phone);
+    const todayLocal = localDateString(offset);
+    const validThrough = addDays(dateOnly(professional.subscriptionEnd), SUBSCRIPTION_GRACE_DAYS);
+    return todayLocal > validThrough;
   }
 
   async changePassword(id: number, currentPassword: string, newPassword: string) {
