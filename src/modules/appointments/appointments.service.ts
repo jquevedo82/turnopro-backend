@@ -34,6 +34,10 @@ export class AppointmentsService {
     const professional = await this.professionalsService.findOne(dto.professionalId);
     const service      = await this.servicesService.findOne(dto.serviceId);
 
+    // Chequeo rápido fuera de la transacción: da un error de UX claro y consistente
+    // con lo que el calendario le mostró al usuario (respeta horarios, excepciones,
+    // anticipación mínima/máxima). No es suficiente por sí solo contra la concurrencia
+    // real — de ahí el re-chequeo dentro de la transacción más abajo.
     const availableSlots = await this.availabilityService.getAvailableSlots(
       dto.professionalId, dto.date, dto.serviceId,
     );
@@ -57,22 +61,85 @@ export class AppointmentsService {
       ? AppointmentStatus.CONFIRMED
       : AppointmentStatus.PENDING;
 
-    const appointment = await this.repo.save(this.repo.create({
-      professionalId: dto.professionalId,
-      clientId:       client.id,
-      serviceId:      dto.serviceId,
-      date:           dto.date,
-      startTime:      dto.startTime,
-      endTime,
-      status,
-      notes: dto.notes,
-      token: uuidv4().replace(/-/g, ''),
-    }));
+    const appointment = await this.createLocked(dto, client.id, endTime, status);
 
     await this.notificationsService.sendAppointmentConfirmation(appointment, client, professional, service);
     // Notificar al médico que llegó una nueva reserva
     await this.notificationsService.notifyProfessionalNewAppointment(appointment, client, professional, service);
     return appointment;
+  }
+
+  /**
+   * Re-chequea el choque de horario y crea la cita dentro de una transacción con
+   * lock nombrado de MySQL por (profesional, fecha) — cierra la race condition de
+   * dos reservas simultáneas para el mismo horario.
+   *
+   * Por qué un lock nombrado (GET_LOCK) y no solo `SELECT ... FOR UPDATE` sobre las
+   * citas existentes: `FOR UPDATE` únicamente bloquea filas que ya existen. Si es la
+   * primera reserva del día para ese profesional, no hay ninguna fila que bloquear
+   * todavía, así que dos requests simultáneos pasarían el chequeo igual. El lock
+   * nombrado serializa por (profesional, fecha) exista o no una cita previa cargada.
+   */
+  private async createLocked(
+    dto: CreateAppointmentDto,
+    clientId: number,
+    endTime: string,
+    status: AppointmentStatus,
+  ): Promise<Appointment> {
+    const lockKey = `turnopro:appt:${dto.professionalId}:${dto.date}`;
+    const blockingStatuses = [
+      AppointmentStatus.PENDING,
+      AppointmentStatus.CONFIRMED,
+      AppointmentStatus.RECONFIRMED,
+      AppointmentStatus.COMPLETED,
+      AppointmentStatus.ARRIVED,
+      AppointmentStatus.IN_PROGRESS,
+    ];
+
+    return this.repo.manager.transaction(async (manager) => {
+      const [{ lock }] = await manager.query('SELECT GET_LOCK(?, 10) AS lock', [lockKey]);
+      if (Number(lock) !== 1) {
+        throw new BadRequestException('El sistema está ocupado procesando otra reserva para este horario, intentá de nuevo en unos segundos');
+      }
+      try {
+        const existing = await manager
+          .createQueryBuilder(Appointment, 'a')
+          .where('a.professionalId = :professionalId', { professionalId: dto.professionalId })
+          .andWhere('a.date = :date', { date: dto.date })
+          .andWhere('a.status IN (:...statuses)', { statuses: blockingStatuses })
+          .select(['a.startTime', 'a.endTime'])
+          .getMany();
+
+        const toMinutes = (t: string) => {
+          const [hh, mm] = t.substring(0, 5).split(':').map(Number);
+          return hh * 60 + mm;
+        };
+        const newStart = toMinutes(dto.startTime);
+        const newEnd   = toMinutes(endTime);
+        const overlaps = existing.some((a) => {
+          const existStart = toMinutes(a.startTime);
+          const existEnd   = toMinutes(a.endTime);
+          return newStart < existEnd && newEnd > existStart;
+        });
+        if (overlaps) {
+          throw new BadRequestException('El horario seleccionado ya no está disponible');
+        }
+
+        return manager.save(Appointment, manager.create(Appointment, {
+          professionalId: dto.professionalId,
+          clientId,
+          serviceId: dto.serviceId,
+          date:      dto.date,
+          startTime: dto.startTime,
+          endTime,
+          status,
+          notes: dto.notes,
+          token: uuidv4().replace(/-/g, ''),
+        }));
+      } finally {
+        await manager.query('SELECT RELEASE_LOCK(?)', [lockKey]);
+      }
+    });
   }
 
   async confirm(id: number, professionalId: number): Promise<Appointment> {
