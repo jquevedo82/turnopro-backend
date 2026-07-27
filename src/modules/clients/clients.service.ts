@@ -72,12 +72,25 @@ export class ClientsService {
     return existing;
   }
 
-  /** Retorna todos los clientes de un profesional con su historial */
-  findByProfessional(professionalId: number): Promise<Client[]> {
-    return this.repo.find({
+  /**
+   * Retorna los clientes de un profesional, paginados.
+   * Sin `relations: ['appointments']` — el frontend no usa esa relación en ninguna
+   * de las dos pantallas que consumen este endpoint (ClientsPage, SecretaryClientsPage),
+   * traerla siempre era carga de red desperdiciada.
+   */
+  async findClientsPage(
+    professionalId: number,
+    page = 1,
+    limit = 50,
+  ): Promise<{ items: Client[]; total: number }> {
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const safePage  = Math.max(page, 1);
+    const [items, total] = await this.repo.findAndCount({
       where: { professionalId },
-      relations: ['appointments'],
       order: { name: 'ASC' },
+      skip:  (safePage - 1) * safeLimit,
+      take:  safeLimit,
     });
+    return { items, total };
   }
 }
