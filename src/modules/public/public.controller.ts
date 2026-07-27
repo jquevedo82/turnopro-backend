@@ -29,7 +29,9 @@ export class PublicController {
 
   /**
    * Retorna el perfil público del profesional por slug.
-   * Solo retorna profesionales activos con suscripción vigente.
+   * Solo retorna profesionales con isActive=true (apagado manual del superadmin).
+   * La suscripción vencida NO oculta la página — solo bloquea reservas nuevas
+   * (ver ProfessionalsService.isSubscriptionExpired(), usado en AppointmentsService.create()).
    * Usado en el header de la página pública.
    */
   @Public()

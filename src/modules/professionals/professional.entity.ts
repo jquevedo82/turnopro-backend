@@ -121,8 +121,15 @@ export class Professional {
   @Column({ name: 'subscription_end', type: 'date', nullable: true })
   subscriptionEnd: Date;
 
+  // Cuándo se envió el aviso de vencimiento próximo para el ciclo actual — se resetea
+  // a null cada vez que el superadmin renueva (ver activate()), para poder avisar de nuevo
+  // en el próximo ciclo. Usado por ProfessionalsService.sendSubscriptionExpiryWarnings() (cron)
+  @Column({ name: 'subscription_warning_sent_at', type: 'datetime', nullable: true })
+  subscriptionWarningSentAt: Date | null;
+
   // Si la página pública está activa y accesible
-  // Se desactiva automáticamente cuando vence la suscripción
+  // Apagado manual del superadmin — NO se desactiva automáticamente al vencer la suscripción
+  // (ver isSubscriptionExpired(): solo bloquea reservas nuevas, no togglea este campo)
   @Column({ name: 'is_active', default: false })
   isActive: boolean;
 

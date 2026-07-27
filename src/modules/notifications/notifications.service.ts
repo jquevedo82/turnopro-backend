@@ -830,6 +830,54 @@ export class NotificationsService {
     });
   }
 
+  /**
+   * Aviso de vencimiento próximo de suscripción. Enviado por
+   * ProfessionalsService.sendSubscriptionExpiryWarnings() (cron), no bloquea nada por sí solo —
+   * solo avisa. El bloqueo real de reservas nuevas lo hace isSubscriptionExpired() por separado.
+   */
+  async sendSubscriptionExpiryWarning(options: {
+    toEmail:           string;
+    professionalName:  string;
+    subscriptionEndStr: string; // 'YYYY-MM-DD'
+    daysLeft:          number;
+  }): Promise<void> {
+    const name = NotificationsService.esc(options.professionalName);
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#f9fafb;padding:20px">
+        <div style="background:#0f2342;border-radius:12px 12px 0 0;padding:28px;text-align:center">
+          <h1 style="color:#fff;margin:0;font-size:26px">TurnoPro</h1>
+          <p style="color:#93c5fd;margin:6px 0 0;font-size:14px">Sistema de gestión de citas</p>
+        </div>
+        <div style="background:#fff;padding:32px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
+          <h2 style="color:#0f2342;margin-top:0">Tu suscripción vence pronto</h2>
+          <p style="color:#4b5563">
+            Hola <strong>${name}</strong>, tu suscripción a TurnoPro vence el
+            <strong>${options.subscriptionEndStr}</strong> (en ${options.daysLeft} día${options.daysLeft === 1 ? '' : 's'}).
+          </p>
+
+          <div style="background:#fffbeb;border-radius:10px;padding:16px;margin:24px 0;border:1px solid #fde68a">
+            <p style="color:#92400e;font-size:13px;margin:0">
+              ⚠️ Una vez vencida, tu página pública deja de aceptar <strong>reservas nuevas</strong>.
+              Tu agenda actual y el acceso al panel no se ven afectados.
+            </p>
+          </div>
+
+          <p style="color:#4b5563">Contactanos para renovar y que no se interrumpa la reserva de turnos nuevos.</p>
+
+          <p style="color:#9ca3af;font-size:12px;text-align:center;margin-top:28px;
+                    border-top:1px solid #f3f4f6;padding-top:16px">
+            TurnoPro — Tu turno en un clic
+          </p>
+        </div>
+      </div>
+    `;
+    await this.sendEmail({
+      to:      options.toEmail,
+      subject: `TurnoPro — Tu suscripción vence en ${options.daysLeft} día${options.daysLeft === 1 ? '' : 's'}`,
+      html,
+    });
+  }
+
   private async sendEmail(options: { to: string; subject: string; html: string }): Promise<void> {
     const brevoKey = process.env.BREVO_API_KEY;
 
