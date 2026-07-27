@@ -23,6 +23,7 @@ import { ProfessionalsService }   from './professionals.service';
 import { NotificationsService }   from '../notifications/notifications.service';
 import { StorageService }         from '../storage/storage.service';
 import { CreateProfessionalDto }  from './dto/create-professional.dto';
+import { UpdateProfessionalDto }  from './dto/update-professional.dto';
 import { UpdateProfileDto }       from './dto/update-profile.dto';
 import { JwtAuthGuard }           from '../../common/guards/jwt-auth.guard';
 import { RolesGuard }             from '../../common/guards/roles.guard';
@@ -154,7 +155,7 @@ export class ProfessionalsController {
 
   @Patch(':id')
   @Roles(Role.SUPERADMIN)
-  async update(@Param('id', ParseIntPipe) id: number, @Body() dto: Partial<CreateProfessionalDto>) {
+  async update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProfessionalDto) {
     const before     = await this.svc.findOne(id);
     const updated    = await this.svc.update(id, dto);
     const emailChanged = dto.email && dto.email !== before.email;

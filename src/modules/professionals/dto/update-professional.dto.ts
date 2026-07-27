@@ -1,15 +1,18 @@
 /**
  * update-professional.dto.ts
  * Módulo: Professionals
- * Extiende CreateProfessionalDto con PartialType — todos los campos son opcionales.
- * Solo incluye los campos que el profesional puede editar desde su panel.
- * Los campos de suscripción y rol solo los puede cambiar el superadmin.
+ * Usado por PATCH /professionals/:id — el superadmin edita cualquier profesional.
+ * Extiende CreateProfessionalDto con PartialType (todos los campos opcionales, mismos
+ * validadores). Incluye email y slug a propósito: solo el superadmin llega a este
+ * endpoint (@Roles(SUPERADMIN)), y el controller ya maneja el chequeo de duplicados
+ * y el email de aviso cuando cambia el email.
+ *
+ * Antes de 2026-07-20 este endpoint recibía `Partial<CreateProfessionalDto>` (un tipo
+ * de TypeScript, no una clase) — el ValidationPipe de Nest no valida contra tipos como
+ * `Partial<T>` porque el metadato reflejado es `Object`, así que no se validaba NADA acá,
+ * ni el email ni el teléfono ni nada. Esta clase reemplaza ese atajo.
  */
-import { PartialType, OmitType } from '@nestjs/mapped-types';
+import { PartialType } from '@nestjs/mapped-types';
 import { CreateProfessionalDto } from './create-professional.dto';
 
-// OmitType excluye campos que el profesional no debe poder cambiar desde su perfil
-// Para que el profesional pueda editar un campo adicional: quitarlo del Omit
-export class UpdateProfessionalDto extends PartialType(
-  OmitType(CreateProfessionalDto, ['email', 'slug'] as const),
-) {}
+export class UpdateProfessionalDto extends PartialType(CreateProfessionalDto) {}

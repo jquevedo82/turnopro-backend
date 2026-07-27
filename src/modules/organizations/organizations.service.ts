@@ -16,6 +16,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository }       from 'typeorm';
 import { Organization }     from './organization.entity';
 import { Professional }     from '../professionals/professional.entity';
+import { CreateOrganizationDto } from './dto/create-organization.dto';
+import { UpdateOrganizationDto } from './dto/update-organization.dto';
 
 @Injectable()
 export class OrganizationsService {
@@ -66,13 +68,7 @@ export class OrganizationsService {
   }
 
   /** Crea una nueva organización */
-  async create(dto: {
-    name:     string;
-    slug?:    string;
-    address?: string;
-    phone?:   string;
-    email?:   string;
-  }): Promise<Organization> {
+  async create(dto: CreateOrganizationDto): Promise<Organization> {
     // Verificar slug único si se provee
     if (dto.slug) {
       const existing = await this.orgRepo.findOne({ where: { slug: dto.slug } });
@@ -84,14 +80,7 @@ export class OrganizationsService {
   }
 
   /** Actualiza datos de una organización */
-  async update(id: number, dto: Partial<{
-    name:     string;
-    slug:     string;
-    address:  string;
-    phone:    string;
-    email:    string;
-    isActive: boolean;
-  }>): Promise<Organization> {
+  async update(id: number, dto: UpdateOrganizationDto): Promise<Organization> {
     const org = await this.orgRepo.findOne({ where: { id } });
     if (!org) throw new NotFoundException(`Organización ${id} no encontrada`);
 
