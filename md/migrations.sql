@@ -161,3 +161,23 @@ SET @sql = IF(
      AFTER `subscription_end`'
 );
 PREPARE _stmt FROM @sql; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;
+
+
+-- -----------------------------------------------------------------------------
+-- [2026-07-20] País del profesional (soporte Argentina/Colombia/Venezuela)
+-- Motivo: default del selector de país en el teléfono del PACIENTE al reservar
+-- (antes siempre arrancaba en +54 sin importar dónde está el profesional).
+-- -----------------------------------------------------------------------------
+SET @sql = IF(
+  EXISTS(
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME   = 'professionals'
+      AND COLUMN_NAME  = 'country'
+  ),
+  'SELECT ''[skip] country ya existe''',
+  'ALTER TABLE `professionals`
+     ADD COLUMN `country` VARCHAR(5) NULL DEFAULT NULL
+     AFTER `whatsapp_phone`'
+);
+PREPARE _stmt FROM @sql; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;

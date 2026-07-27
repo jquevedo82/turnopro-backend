@@ -48,6 +48,7 @@ export class PublicController {
       address:    professional.address,
       phone:      professional.phone,
       publicEmail: professional.publicEmail,
+      country:    professional.country, // default del selector de país en el teléfono del paciente
       avatar:     professional.avatar,
       logo:       professional.logo,
       instagram:  professional.instagram,

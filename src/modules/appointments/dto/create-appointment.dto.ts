@@ -6,7 +6,7 @@
  *   3. Actualizar appointments.service.ts → create()
  */
 import { IsNumber, IsString, IsOptional, IsEmail, MaxLength } from 'class-validator';
-import { IsPhoneAR_VE } from '../../../common/validators/phone.validator';
+import { IsSupportedPhone } from '../../../common/validators/phone.validator';
 
 export class CreateAppointmentDto {
   @IsNumber()
@@ -23,7 +23,7 @@ export class CreateAppointmentDto {
   clientName: string;
   @IsEmail({}, { message: 'El email del cliente no es válido' })
   clientEmail: string;
-  @IsPhoneAR_VE()
+  @IsSupportedPhone()
   clientPhone: string;
   @IsString()
   @IsOptional()

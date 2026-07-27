@@ -1,12 +1,18 @@
 /**
- * timezone.ts — Resolución de huso horario por prefijo de teléfono (+54 AR / +58 VE)
+ * timezone.ts — Resolución de huso horario por prefijo de teléfono (+54 AR / +57 CO / +58 VE)
  * y utilidades de fecha-calendario local, para no depender de la hora del servidor
  * (Render corre en UTC). Mismo patrón que usa TuCatálogo (orders.service.ts →
  * getLocalDayRangeUtc): comparar por fecha-calendario del servidor rompe cerca de
- * medianoche UTC, que es plena tarde/noche en Argentina y Venezuela.
+ * medianoche UTC, que es plena tarde/noche en Argentina, Colombia y Venezuela.
+ *
+ * Los prefijos acá DEBEN cubrir los mismos países que
+ * common/validators/phone.validator.ts (SUPPORTED_PHONE_COUNTRIES) — si se agrega un
+ * país nuevo ahí y no acá, ese profesional cae al DEFAULT_OFFSET_HOURS (Argentina),
+ * que puede estar mal por varias horas.
  */
 const PHONE_PREFIX_TZ_OFFSET: { prefix: string; offset: number }[] = [
   { prefix: '54', offset: -3 }, // Argentina
+  { prefix: '57', offset: -5 }, // Colombia
   { prefix: '58', offset: -4 }, // Venezuela
 ];
 

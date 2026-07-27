@@ -4,14 +4,19 @@
  * NO incluye campos sensibles: email, password, isActive, planId, slug.
  * Para agregar un campo editable: agregarlo aquí con su validador.
  */
-import { IsString, IsOptional, IsBoolean, IsInt, IsPositive, Min } from 'class-validator';
-import { IsPhoneAR_VE } from '../../../common/validators/phone.validator';
+import { IsString, IsOptional, IsBoolean, IsInt, IsPositive, IsIn, Min } from 'class-validator';
+import { IsSupportedPhone, SUPPORTED_PHONE_COUNTRIES } from '../../../common/validators/phone.validator';
+
+const SUPPORTED_COUNTRY_CODES = SUPPORTED_PHONE_COUNTRIES.map((c) => `+${c.code}`);
 
 export class UpdateProfileDto {
   @IsOptional() @IsString() name?:       string;
   @IsOptional() @IsString() profession?: string;
-  @IsOptional() @IsPhoneAR_VE() phone?:         string;
-  @IsOptional() @IsPhoneAR_VE() whatsappPhone?: string;
+  @IsOptional() @IsSupportedPhone() phone?:         string;
+  @IsOptional() @IsSupportedPhone() whatsappPhone?: string;
+  // País por defecto para el teléfono del paciente en la página de reserva — dónde el
+  // profesional lo configura (ver ProfilePage.tsx en el frontend).
+  @IsOptional() @IsIn(SUPPORTED_COUNTRY_CODES) country?: string;
   @IsOptional() @IsString() slogan?:     string;
   @IsOptional() @IsString() bio?:        string;
   @IsOptional() @IsString() address?:    string;

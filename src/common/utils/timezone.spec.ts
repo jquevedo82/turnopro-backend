@@ -5,6 +5,10 @@ describe('resolveTzOffsetHours', () => {
     expect(resolveTzOffsetHours('+5491112345678')).toBe(-3);
   });
 
+  it('resuelve Colombia (+57) a -5', () => {
+    expect(resolveTzOffsetHours('+573001234567')).toBe(-5);
+  });
+
   it('resuelve Venezuela (+58) a -4', () => {
     expect(resolveTzOffsetHours('+584121234567')).toBe(-4);
   });

@@ -48,6 +48,14 @@ export class Professional {
   @Column({ name: 'whatsapp_phone', length: 30, nullable: true })
   whatsappPhone: string; // Número donde el médico recibe notificaciones WhatsApp
 
+  // País del profesional — código de teléfono con '+' (ej: '+54', '+57', '+58'), debe
+  // ser uno de los códigos en SUPPORTED_PHONE_COUNTRIES (common/validators/phone.validator.ts).
+  // Se usa como default del selector de país en el teléfono del PACIENTE cuando reserva
+  // en la página pública — igual patrón que TuCatálogo (settings.country sugiere el
+  // código de WhatsApp), sin necesidad de que el paciente lo cambie a mano cada vez.
+  @Column({ length: 5, nullable: true })
+  country: string | null;
+
   // ── Perfil público ─────────────────────────────────────────────────────────
   // Todo lo que aparece en la página pública tudominio.com/:slug
 

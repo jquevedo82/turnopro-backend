@@ -13,10 +13,13 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 import {
-  IsString, IsEmail, IsOptional, IsNumber, IsEnum,
+  IsString, IsEmail, IsOptional, IsNumber, IsEnum, IsIn,
   IsBoolean, IsDateString, MinLength, Matches, Min, Max,
 } from 'class-validator';
 import { ProfessionalType } from '../professional-type.enum';
+import { IsSupportedPhone, SUPPORTED_PHONE_COUNTRIES } from '../../../common/validators/phone.validator';
+
+const SUPPORTED_COUNTRY_CODES = SUPPORTED_PHONE_COUNTRIES.map((c) => `+${c.code}`);
 
 export class CreateProfessionalDto {
   // ── Datos obligatorios ───────────────────────────────────────────────────
@@ -48,9 +51,15 @@ export class CreateProfessionalDto {
   @IsOptional()
   professionalType?: ProfessionalType;
 
-  @IsString()
+  @IsSupportedPhone()
   @IsOptional()
   phone?: string;
+
+  // Código de país por defecto para el teléfono del paciente en la página de reserva.
+  // Ej: '+54', '+57', '+58' — debe ser uno de los países soportados.
+  @IsIn(SUPPORTED_COUNTRY_CODES, { message: `country debe ser uno de: ${SUPPORTED_COUNTRY_CODES.join(', ')}` })
+  @IsOptional()
+  country?: string;
 
   @IsString()
   @IsOptional()
