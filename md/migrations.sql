@@ -141,3 +141,23 @@ SET @sql = IF(
      ON `schedule_exceptions` (`professional_id`, `date`)'
 );
 PREPARE _stmt FROM @sql; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;
+
+
+-- -----------------------------------------------------------------------------
+-- [2026-07-20] Aviso de vencimiento de suscripción
+-- Motivo: ProfessionalsService.sendSubscriptionExpiryWarnings() (cron diario) necesita
+-- registrar si ya avisó en el ciclo actual, para no reenviar el email todos los días.
+-- -----------------------------------------------------------------------------
+SET @sql = IF(
+  EXISTS(
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME   = 'professionals'
+      AND COLUMN_NAME  = 'subscription_warning_sent_at'
+  ),
+  'SELECT ''[skip] subscription_warning_sent_at ya existe''',
+  'ALTER TABLE `professionals`
+     ADD COLUMN `subscription_warning_sent_at` DATETIME NULL DEFAULT NULL
+     AFTER `subscription_end`'
+);
+PREPARE _stmt FROM @sql; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;
