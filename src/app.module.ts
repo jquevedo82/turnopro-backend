@@ -45,6 +45,8 @@ import { Organization } from './modules/organizations/organization.entity';
 import { Secretary } from './modules/secretaries/secretary.entity';
 import { SecretariesModule } from './modules/secretaries/secretaries.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { Review } from './modules/reviews/review.entity';
+import { ReviewsModule } from './modules/reviews/reviews.module';
 
 @Module({
   imports: [
@@ -78,6 +80,7 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
         NotificationLog,
         Organization,   // ← agregar
         Secretary,      // ← agregar
+        Review,
       ],
       // ⚠️ IMPORTANTE: synchronize:true solo para desarrollo
       // En producción: cambiar a false y ejecutar: npm run migration:run
@@ -116,6 +119,7 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
     SuperadminModule,
     OrganizationsModule,
     SecretariesModule,
+    ReviewsModule,
   ],
   providers: [
     // Aplica ThrottlerGuard globalmente a todos los endpoints

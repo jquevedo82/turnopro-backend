@@ -17,6 +17,7 @@ import { ProfessionalsService } from '../professionals/professionals.service';
 import { ServicesService }      from '../services/services.service';
 import { AvailabilityService }  from '../availability/availability.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ReviewsService } from '../reviews/reviews.service';
 import { resolveTzOffsetHours, localDateString, addDays, SUPPORTED_TZ_OFFSETS } from '../../common/utils/timezone';
 
 @Injectable()
@@ -29,6 +30,7 @@ export class AppointmentsService {
     private readonly servicesService:      ServicesService,
     private readonly availabilityService:  AvailabilityService,
     private readonly notificationsService: NotificationsService,
+    private readonly reviewsService:       ReviewsService,
   ) {}
 
   async create(dto: CreateAppointmentDto): Promise<Appointment> {
@@ -299,11 +301,12 @@ export class AppointmentsService {
     }
     await this.repo.update(id, { status: AppointmentStatus.COMPLETED });
     await this.professionalsService.bumpQueueUpdatedAt(professionalId);
-    // Enviar email de gracias + rebooking al paciente
+    // Enviar email de gracias + rebooking al paciente, con pedido de reseña
     const completed = await this.repo.findOne({ where: { id }, relations: ['client'] });
     if (completed) {
-      const prof = await this.professionalsService.findOne(professionalId);
-      await this.notificationsService.notifyClientAppointmentCompleted(completed, completed.client, prof);
+      const prof   = await this.professionalsService.findOne(professionalId);
+      const review = await this.reviewsService.createInviteForAppointment(completed, completed.client);
+      await this.notificationsService.notifyClientAppointmentCompleted(completed, completed.client, prof, review.token);
     }
     return this.findById(id);
   }
