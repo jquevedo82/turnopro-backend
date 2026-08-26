@@ -18,6 +18,7 @@ import { Public }               from '../../common/decorators/public.decorator';
 import { ProfessionalsService } from '../professionals/professionals.service';
 import { ServicesService }      from '../services/services.service';
 import { AppointmentsService }  from '../appointments/appointments.service';
+import { ReviewsService }       from '../reviews/reviews.service';
 
 @Controller('public')
 export class PublicController {
@@ -25,6 +26,7 @@ export class PublicController {
     private readonly professionalsService: ProfessionalsService,
     private readonly servicesService:      ServicesService,
     private readonly appointmentsService:  AppointmentsService,
+    private readonly reviewsService:       ReviewsService,
   ) {}
 
   /**
@@ -49,6 +51,7 @@ export class PublicController {
       phone:      professional.phone,
       publicEmail: professional.publicEmail,
       country:    professional.country, // default del selector de país en el teléfono del paciente
+      professionalType: professional.professionalType, // adapta "Paciente/Cliente" y "Cita/Turno/Sesión" en la página pública
       avatar:     professional.avatar,
       logo:       professional.logo,
       instagram:  professional.instagram,
@@ -110,5 +113,13 @@ export class PublicController {
   @Get(':slug/queue-version')
   async getQueueVersion(@Param('slug') slug: string) {
     return this.appointmentsService.getQueueVersion(slug);
+  }
+
+  /** Reseñas publicadas del profesional — nombre redactado a iniciales según el vertical (HEALTH) */
+  @Public()
+  @Get(':slug/reviews')
+  async getPublicReviews(@Param('slug') slug: string) {
+    const professional = await this.professionalsService.findBySlug(slug);
+    return this.reviewsService.getPublicPublished(professional.id, professional.professionalType);
   }
 }
