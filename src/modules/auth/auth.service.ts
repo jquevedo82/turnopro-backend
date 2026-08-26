@@ -131,6 +131,7 @@ export class AuthService {
         name:             professional.name,
         slug:             professional.slug,
         professionalType: professional.professionalType,
+        country:          professional.country,
       },
     };
   }

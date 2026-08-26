@@ -68,3 +68,28 @@ describe('AuthService — login superadmin', () => {
     expect(result.user.role).toBe('superadmin');
   });
 });
+
+describe('AuthService — login profesional', () => {
+  beforeEach(() => {
+    mockSecretariesService.validateSecretary.mockResolvedValue(null);
+  });
+
+  it('incluye el país configurado en la respuesta de login', async () => {
+    const password = 'password-correcto';
+    mockRepo.findOne.mockResolvedValue({
+      id: 5,
+      email: 'doc@turnopro.com',
+      password: await bcrypt.hash(password, 10),
+      isActive: true,
+      name: 'Dra. García',
+      slug: 'dra-garcia',
+      professionalType: 'health',
+      country: '+58',
+    });
+
+    const service = await buildService();
+    const result  = await service.login({ email: 'doc@turnopro.com', password });
+
+    expect(result.user.country).toBe('+58');
+  });
+});
