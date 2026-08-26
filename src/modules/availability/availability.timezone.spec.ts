@@ -104,4 +104,32 @@ describe('AvailabilityService — timezone fix', () => {
       expect(isToday('2099-01-01', '22:00')).toBe(true); // con localNow siempre es hoy
     });
   });
+
+  describe('getAvailableSlots() — límite de anticipación en el huso del profesional, no del servidor', () => {
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('bloquea una fecha que excede maxAdvanceDays según el huso de Venezuela, aunque el servidor (UTC) la vea un día más cerca', async () => {
+      // Instante real: 2026-08-28T02:00:00Z → fecha del SERVIDOR (UTC) = 2026-08-28,
+      // pero en Venezuela (UTC-4) son las 22:00 del 2026-08-27 → fecha LOCAL = 2026-08-27.
+      jest.useFakeTimers().setSystemTime(new Date('2026-08-28T02:00:00.000Z'));
+
+      const professionalsService = {
+        findOne: jest.fn().mockResolvedValue({
+          id: 1, phone: '+584121234567', // Venezuela
+          minAdvanceHours: 0, maxAdvanceDays: 1,
+        }),
+      };
+      const svc = new (AvailabilityService as any)({}, {}, professionalsService, {});
+
+      // 2026-08-29 está a 2 días del "hoy" real de Venezuela (27) → excede maxAdvanceDays=1,
+      // debe bloquearse. Con el bug viejo (todayStr = fecha UTC del servidor = 28), la
+      // diferencia calculada sería de solo 1 día → NO se bloquearía, mostrando un día
+      // de más de lo que el profesional configuró.
+      const slots = await svc.getAvailableSlots(1, '2026-08-29');
+
+      expect(slots).toEqual([]);
+    });
+  });
 });

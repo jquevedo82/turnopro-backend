@@ -25,6 +25,7 @@ import { AppointmentStatus } from '../appointments/appointment-status.enum';
 import { ScheduleService }  from '../schedule/schedule.service';
 import { ProfessionalsService } from '../professionals/professionals.service';
 import { ServicesService }  from '../services/services.service';
+import { resolveTzOffsetHours, localDateString } from '../../common/utils/timezone';
 
 @Injectable()
 export class AvailabilityService {
@@ -76,7 +77,12 @@ export class AvailabilityService {
 
     // ── Verificar límites de anticipación ─────────────────────────────────
     // Comparamos fechas como strings (YYYY-MM-DD) para no depender de UTC.
-    const todayStr      = new Date().toISOString().split('T')[0];
+    // "Hoy" acá es la fecha-calendario local del PROFESIONAL (por prefijo de su
+    // teléfono) — no la fecha UTC del servidor. Mismo bug que ya se corrigió en
+    // getTomorrowAppointments()/sendAutomaticReminders(): cerca de medianoche UTC,
+    // la fecha del servidor puede estar hasta 5hs adelantada respecto al país del
+    // profesional, corriendo el límite de anticipación mínima/máxima un día.
+    const todayStr      = localDateString(resolveTzOffsetHours(professional.phone));
     const requestedDate = new Date(date      + 'T12:00:00Z');
     const todayDate     = new Date(todayStr  + 'T12:00:00Z');
     const diffDays      = (requestedDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24);
