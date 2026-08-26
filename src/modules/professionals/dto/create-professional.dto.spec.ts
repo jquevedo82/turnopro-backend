@@ -39,4 +39,31 @@ describe('CreateProfessionalDto — validaciones', () => {
     const errors = await validate(buildValid({ country: '+55' })); // Brasil
     expect(errors.find((e) => e.property === 'country')).toBeDefined();
   });
+
+  it('rechaza slogan/address de más de 255 caracteres', async () => {
+    const long = 'a'.repeat(256);
+    const errors = await validate(buildValid({ slogan: long, address: long }));
+    expect(errors.find((e) => e.property === 'slogan')).toBeDefined();
+    expect(errors.find((e) => e.property === 'address')).toBeDefined();
+  });
+
+  it('rechaza bio de más de 2000 caracteres', async () => {
+    const errors = await validate(buildValid({ bio: 'a'.repeat(2001) }));
+    expect(errors.find((e) => e.property === 'bio')).toBeDefined();
+  });
+
+  it('acepta slogan/bio/address dentro del límite', async () => {
+    const errors = await validate(buildValid({ slogan: 'a'.repeat(255), bio: 'a'.repeat(2000), address: 'a'.repeat(255) }));
+    expect(errors.find((e) => ['slogan', 'bio', 'address'].includes(e.property))).toBeUndefined();
+  });
+
+  it('rechaza password inicial de menos de 10 caracteres', async () => {
+    const errors = await validate(buildValid({ password: 'corta123' })); // 8 chars
+    expect(errors.find((e) => e.property === 'password')).toBeDefined();
+  });
+
+  it('acepta password inicial de 10 caracteres o más', async () => {
+    const errors = await validate(buildValid({ password: 'diezcaracteres' }));
+    expect(errors.find((e) => e.property === 'password')).toBeUndefined();
+  });
 });

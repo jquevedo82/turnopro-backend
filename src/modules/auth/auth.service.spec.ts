@@ -93,3 +93,19 @@ describe('AuthService — login profesional', () => {
     expect(result.user.country).toBe('+58');
   });
 });
+
+describe('AuthService — resetPassword', () => {
+  it('rechaza contraseña de menos de 10 caracteres', async () => {
+    const service = await buildService();
+    await expect(service.resetPassword('token', 'corta123')).rejects.toThrow(
+      'La contraseña debe tener al menos 10 caracteres',
+    );
+  });
+
+  it('rechaza contraseña vacía', async () => {
+    const service = await buildService();
+    await expect(service.resetPassword('token', '')).rejects.toThrow(
+      'La contraseña debe tener al menos 10 caracteres',
+    );
+  });
+});

@@ -14,7 +14,7 @@
  */
 import {
   IsString, IsEmail, IsOptional, IsNumber, IsEnum, IsIn,
-  IsBoolean, IsDateString, MinLength, Matches, Min, Max,
+  IsBoolean, IsDateString, MinLength, MaxLength, Matches, Min, Max,
 } from 'class-validator';
 import { ProfessionalType } from '../professional-type.enum';
 import { IsSupportedPhone, SUPPORTED_PHONE_COUNTRIES } from '../../../common/validators/phone.validator';
@@ -33,7 +33,7 @@ export class CreateProfessionalDto {
   // El profesional configura la suya desde el email de bienvenida.
   @IsString()
   @IsOptional()
-  @MinLength(8, { message: 'La contraseña debe tener al menos 8 caracteres' })
+  @MinLength(10, { message: 'La contraseña debe tener al menos 10 caracteres' })
   password?: string;
 
   @IsString()
@@ -63,14 +63,17 @@ export class CreateProfessionalDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(255)
   slogan?: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(2000)
   bio?: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(255)
   address?: string;
 
   @IsNumber()
