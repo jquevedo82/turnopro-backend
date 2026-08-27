@@ -195,6 +195,24 @@ export class AppointmentsController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPERADMIN)
+  @Get('admin-stats')
+  getAdminStats() {
+    return this.svc.getGlobalCompletedCount();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROFESSIONAL, Role.SECRETARY)
+  @Get('stats')
+  async getStats(
+    @CurrentUser() user: JwtPayload,
+    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
+  ) {
+    const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
+    return this.svc.getMonthlyStats(professionalId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.PROFESSIONAL, Role.SECRETARY)
   @Get('queue')
   async getQueue(

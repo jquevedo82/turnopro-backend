@@ -6,7 +6,7 @@ import {
   Injectable, BadRequestException, ForbiddenException, NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository }       from 'typeorm';
+import { Repository, Between } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { v4 as uuidv4 }    from 'uuid';
 import { Appointment }      from './appointment.entity';
@@ -19,6 +19,15 @@ import { AvailabilityService }  from '../availability/availability.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ReviewsService } from '../reviews/reviews.service';
 import { resolveTzOffsetHours, localDateString, addDays, SUPPORTED_TZ_OFFSETS } from '../../common/utils/timezone';
+
+export interface MonthlyStats {
+  month:      string; // 'YYYY-MM'
+  completed:  number;
+  cancelled:  number;
+  noShow:     number;
+  noShowRate: number; // porcentaje 0-100
+  topService: { name: string; count: number } | null;
+}
 
 @Injectable()
 export class AppointmentsService {
@@ -269,6 +278,53 @@ export class AppointmentsService {
       relations: ['client', 'service'],
       order: { startTime: 'ASC' },
     });
+  }
+
+  // Estadísticas del mes en curso, calculado sobre la fecha-calendario LOCAL del
+  // profesional (mismo criterio que getTomorrowAppointments) para que el corte de
+  // mes no salte de día según la hora UTC del servidor.
+  async getMonthlyStats(professionalId: number): Promise<MonthlyStats> {
+    const professional = await this.professionalsService.findOne(professionalId);
+    const offset        = resolveTzOffsetHours(professional.phone);
+    const todayStr       = localDateString(offset);
+    const [year, month]  = todayStr.split('-').map(Number);
+    const monthStart     = `${year}-${String(month).padStart(2, '0')}-01`;
+    const nextMonthStart = month === 12
+      ? `${year + 1}-01-01`
+      : `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    const monthEnd = addDays(nextMonthStart, -1);
+
+    const appts = await this.repo.find({
+      where: { professionalId, date: Between(monthStart, monthEnd) },
+      relations: ['service'],
+    });
+
+    const completed = appts.filter((a) => a.status === AppointmentStatus.COMPLETED).length;
+    const cancelled = appts.filter((a) => a.status === AppointmentStatus.CANCELLED).length;
+    const noShow    = appts.filter((a) => a.status === AppointmentStatus.NO_SHOW).length;
+    // Tasa de no-show sobre las citas que efectivamente llegaron a su fecha sin
+    // cancelarse antes (completed + no_show) — cancelar con anticipación no es un no-show.
+    const attendanceBase = completed + noShow;
+    const noShowRate = attendanceBase > 0 ? Math.round((noShow / attendanceBase) * 100) : 0;
+
+    const serviceCounts = new Map<string, number>();
+    for (const a of appts) {
+      if (!a.service?.name) continue;
+      serviceCounts.set(a.service.name, (serviceCounts.get(a.service.name) ?? 0) + 1);
+    }
+    let topService: { name: string; count: number } | null = null;
+    for (const [name, count] of serviceCounts) {
+      if (!topService || count > topService.count) topService = { name, count };
+    }
+
+    return { month: todayStr.slice(0, 7), completed, cancelled, noShow, noShowRate, topService };
+  }
+
+  // Métrica global para el dashboard del superadmin — cuántas citas se atendieron
+  // en total en todo el sistema, sin importar el profesional.
+  async getGlobalCompletedCount(): Promise<{ totalCompleted: number }> {
+    const totalCompleted = await this.repo.count({ where: { status: AppointmentStatus.COMPLETED } });
+    return { totalCompleted };
   }
 
   async resendEmailToClient(id: number, professionalId: number): Promise<{ message: string }> {
