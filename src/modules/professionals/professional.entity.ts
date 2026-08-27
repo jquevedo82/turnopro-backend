@@ -53,7 +53,7 @@ export class Professional {
   // Se usa como default del selector de país en el teléfono del PACIENTE cuando reserva
   // en la página pública — igual patrón que TuCatálogo (settings.country sugiere el
   // código de WhatsApp), sin necesidad de que el paciente lo cambie a mano cada vez.
-  @Column({ length: 5, nullable: true })
+  @Column({ type: 'varchar', length: 5, nullable: true })
   country: string | null;
 
   // ── Perfil público ─────────────────────────────────────────────────────────
