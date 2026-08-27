@@ -9,7 +9,7 @@ import { AppModule } from './app.module';
 import { appConfig } from './config/app.config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
-import compression from 'compression';
+import * as compression from 'compression';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
