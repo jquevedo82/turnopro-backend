@@ -90,15 +90,19 @@ export class NotificationsService {
       emailGreeting:     vc.emailGreeting,
     });
 
-    await this.sendEmail({
-      to:      client.email,
-      subject: isPending
-        ? `Tu solicitud de ${vc.appointmentLabel.toLowerCase()} con ${professional.name} fue recibida`
-        : `Tu ${vc.appointmentLabel.toLowerCase()} con ${professional.name} está confirmada ✅`,
-      html,
-    });
-
-    await this.logNotification(appointment.id, 'email', 'confirmation');
+    try {
+      const result = await this.sendEmail({
+        to:      client.email,
+        subject: isPending
+          ? `Tu solicitud de ${vc.appointmentLabel.toLowerCase()} con ${professional.name} fue recibida`
+          : `Tu ${vc.appointmentLabel.toLowerCase()} con ${professional.name} está confirmada ✅`,
+        html,
+      });
+      await this.logNotification(appointment.id, 'email', 'confirmation', result.success ? 'sent' : 'failed', result.error);
+    } catch (err) {
+      this.logger.error(`Error enviando confirmación al cliente: ${err.message}`);
+      await this.logNotification(appointment.id, 'email', 'confirmation', 'failed', err.message);
+    }
   }
 
   /**
@@ -165,13 +169,17 @@ export class NotificationsService {
       emailGreeting:    vc.emailGreeting,
     });
 
-    await this.sendEmail({
-      to:      client.email,
-      subject: `Recordatorio: tu ${vc.appointmentLabel.toLowerCase()} con ${professional.name} 📅`,
-      html,
-    });
-
-    await this.logNotification(appointment.id, 'email', 'reminder');
+    try {
+      const result = await this.sendEmail({
+        to:      client.email,
+        subject: `Recordatorio: tu ${vc.appointmentLabel.toLowerCase()} con ${professional.name} 📅`,
+        html,
+      });
+      await this.logNotification(appointment.id, 'email', 'reminder', result.success ? 'sent' : 'failed', result.error);
+    } catch (err) {
+      this.logger.error(`Error reenviando confirmación al cliente: ${err.message}`);
+      await this.logNotification(appointment.id, 'email', 'reminder', 'failed', err.message);
+    }
   }
 
   /** Envía email de cancelación al cliente cuando el profesional cancela su cita */
@@ -676,13 +684,14 @@ export class NotificationsService {
     });
   }
 
+  /** @returns true si el email salió — false si falló, para que el caller pueda avisar (no queda registro en notifications_log: no hay appointmentId al que atarlo) */
   async sendWelcomeProfessional(options: {
     toEmail:          string;
     professionalName: string;
     email:            string;
     resetToken:       string;
     slug:             string;
-  }): Promise<void> {
+  }): Promise<boolean> {
     const setupUrl   = `${this.appUrl}/reset-password?token=${options.resetToken}`;
     const bookingUrl = `${this.appUrl}/${options.slug}`;
     const html = `
@@ -729,23 +738,25 @@ export class NotificationsService {
         </div>
       </div>
     `;
-    await this.sendEmail({
+    const result = await this.sendEmail({
       to:      options.toEmail,
       subject: `Bienvenido/a a TurnoPro — Configurá tu contraseña`,
       html,
     });
+    return result.success;
   }
 
   /**
    * Email de bienvenida para secretarias.
    * Mismo mecanismo que sendWelcomeProfessional — link para configurar contraseña.
    * El token usa el mismo endpoint /reset-password que comparten todos los roles.
+   * @returns true si el email salió — false si falló, para que el caller pueda avisar
    */
   async sendWelcomeSecretary(options: {
     toEmail: string;
     name:    string;
     token:   string;
-  }): Promise<void> {
+  }): Promise<boolean> {
     const setupUrl = `${this.appUrl}/reset-password?token=${options.token}`;
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#f9fafb;padding:20px">
@@ -785,11 +796,12 @@ export class NotificationsService {
         </div>
       </div>
     `;
-    await this.sendEmail({
+    const result = await this.sendEmail({
       to:      options.toEmail,
       subject: 'TurnoPro — Configurá tu contraseña de secretaria',
       html,
     });
+    return result.success;
   }
 
   /** Notifica al usuario cuando el superadmin cambia su email de acceso */

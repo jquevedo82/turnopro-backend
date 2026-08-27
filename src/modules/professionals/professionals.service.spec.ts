@@ -49,6 +49,56 @@ describe('ProfessionalsService.create()', () => {
       svc.create({ name: 'Dr. X', email: 'shared@test.com', slug: 'dr-x', profession: 'Médico' })
     ).rejects.toThrow(ConflictException);
   });
+
+  it('informa emailSent=false si el email de bienvenida falla, sin romper la creación', async () => {
+    const saved = { id: 1, email: 'dr@test.com', name: 'Dr. X', slug: 'dr-x' };
+    const repo = {
+      findOne: jest.fn().mockResolvedValue(null),
+      save:    jest.fn().mockResolvedValue(saved),
+      create:  jest.fn((e) => e),
+      update:  jest.fn().mockResolvedValue(undefined),
+    };
+    const notifications = { sendWelcomeProfessional: jest.fn().mockResolvedValue(false) };
+    const svc = new (ProfessionalsService as any)(repo, makeSecretaryRepo(), notifications);
+
+    const result = await svc.create({ name: 'Dr. X', email: 'dr@test.com', slug: 'dr-x', profession: 'Médico' });
+
+    expect(notifications.sendWelcomeProfessional).toHaveBeenCalled();
+    expect((result as any).emailSent).toBe(false);
+  });
+
+  it('informa emailSent=true si el email de bienvenida sale bien', async () => {
+    const saved = { id: 1, email: 'dr@test.com', name: 'Dr. X', slug: 'dr-x' };
+    const repo = {
+      findOne: jest.fn().mockResolvedValue(null),
+      save:    jest.fn().mockResolvedValue(saved),
+      create:  jest.fn((e) => e),
+      update:  jest.fn().mockResolvedValue(undefined),
+    };
+    const notifications = { sendWelcomeProfessional: jest.fn().mockResolvedValue(true) };
+    const svc = new (ProfessionalsService as any)(repo, makeSecretaryRepo(), notifications);
+
+    const result = await svc.create({ name: 'Dr. X', email: 'dr@test.com', slug: 'dr-x', profession: 'Médico' });
+
+    expect((result as any).emailSent).toBe(true);
+  });
+});
+
+describe('ProfessionalsService.resendWelcome()', () => {
+  it('devuelve emailSent=false y un mensaje claro si el envío falla', async () => {
+    const professional = { id: 1, email: 'dr@test.com', name: 'Dr. X', slug: 'dr-x' };
+    const repo = {
+      findOne: jest.fn().mockResolvedValue(professional),
+      update:  jest.fn().mockResolvedValue(undefined),
+    };
+    const notifications = { sendWelcomeProfessional: jest.fn().mockResolvedValue(false) };
+    const svc = new (ProfessionalsService as any)(repo, makeSecretaryRepo(), notifications);
+
+    const result = await svc.resendWelcome(1);
+
+    expect(result.emailSent).toBe(false);
+    expect(result.message).toContain('No se pudo enviar');
+  });
 });
 
 describe('ProfessionalsService.update()', () => {

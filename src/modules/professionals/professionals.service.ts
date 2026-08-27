@@ -114,42 +114,39 @@ export class ProfessionalsService {
     });
 
     // Enviar email de bienvenida con link para configurar contraseña
-    try {
-      await this.notifications.sendWelcomeProfessional({
-        toEmail:          saved.email,
-        professionalName: saved.name,
-        email:            saved.email,
-        resetToken,
-        slug:             saved.slug,
-      });
-      console.log('Email de bienvenida enviado a:', saved.email);
-    } catch (err: any) {
-      console.error('=== ERROR EMAIL BIENVENIDA ===');
-      console.error('Destinatario:', saved.email);
-      console.error('Mensaje:', err?.message);
-      console.error('Código:', err?.code);
-      console.error('Response:', err?.response);
-      console.error('Stack:', err?.stack);
-      console.error('==============================');
-    }
+    const emailSent = await this.notifications.sendWelcomeProfessional({
+      toEmail:          saved.email,
+      professionalName: saved.name,
+      email:            saved.email,
+      resetToken,
+      slug:             saved.slug,
+    });
+    // sendEmail() ya loguea el detalle del error internamente si falla — acá solo
+    // necesitamos que el superadmin se entere en el momento, no en los logs de Render
+    (saved as any).emailSent = emailSent;
 
     return saved;
   }
 
   /** Regenera el token de configuración y reenvía el email de bienvenida */
-  async resendWelcome(id: number): Promise<{ message: string }> {
+  async resendWelcome(id: number): Promise<{ message: string; emailSent: boolean }> {
     const professional = await this.findOne(id);
     const resetToken   = crypto.randomBytes(32).toString('hex');
     const resetExpiry  = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await this.repo.update(id, { resetToken, resetTokenExpiry: resetExpiry });
-    await this.notifications.sendWelcomeProfessional({
+    const emailSent = await this.notifications.sendWelcomeProfessional({
       toEmail:          professional.email,
       professionalName: professional.name,
       email:            professional.email,
       resetToken,
       slug:             professional.slug,
     });
-    return { message: `Email de configuración reenviado a ${professional.email}` };
+    return {
+      message: emailSent
+        ? `Email de configuración reenviado a ${professional.email}`
+        : `No se pudo enviar el email a ${professional.email} — probá de nuevo en unos minutos`,
+      emailSent,
+    };
   }
 
   /** Actualiza datos del profesional. Para campos restringidos: agregar validaciones aquí. */

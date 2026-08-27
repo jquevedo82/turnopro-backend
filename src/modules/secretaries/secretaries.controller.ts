@@ -87,11 +87,12 @@ export class SecretariesController {
 
     // Enviar email de bienvenida con link para configurar contraseña
     // Reutiliza el mismo endpoint /reset-password que usan los profesionales
-    await this.notifications.sendWelcomeSecretary({
+    const emailSent = await this.notifications.sendWelcomeSecretary({
       toEmail: secretary.email,
       name:    secretary.name,
       token:   resetToken,
     });
+    (secretary as any).emailSent = emailSent;
 
     return secretary;
   }
@@ -148,12 +149,17 @@ export class SecretariesController {
     const secretary  = await this.svc.findOne(id);
     const resetToken = await this.svc.generateResetToken(id);
 
-    await this.notifications.sendWelcomeSecretary({
+    const emailSent = await this.notifications.sendWelcomeSecretary({
       toEmail: secretary.email,
       name:    secretary.name,
       token:   resetToken,
     });
 
-    return { message: `Credenciales reenviadas a ${secretary.email}` };
+    return {
+      message: emailSent
+        ? `Credenciales reenviadas a ${secretary.email}`
+        : `No se pudo enviar el email a ${secretary.email} — probá de nuevo en unos minutos`,
+      emailSent,
+    };
   }
 }

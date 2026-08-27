@@ -78,3 +78,71 @@ describe('NotificationsService.notifyClientAppointmentCompleted() — registro r
     expect(call.status).not.toBe('sent');
   });
 });
+
+describe('NotificationsService — confirmación y recordatorio, mismo gap que completed', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    delete process.env.BREVO_API_KEY;
+    jest.restoreAllMocks();
+  });
+
+  const apptWithToken: any = { ...appointment, token: 'tok', status: 'confirmed' };
+
+  it('sendAppointmentConfirmation registra failed en vez de sent cuando el envío falla', async () => {
+    process.env.BREVO_API_KEY = 'fake-key';
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500, text: async () => 'Brevo caído' }) as any;
+
+    const { svc, logRepo } = makeService();
+    await svc.sendAppointmentConfirmation(apptWithToken, client, professional, { name: 'Consulta' });
+
+    expect(logRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ appointmentId: 42, event: 'confirmation', status: 'failed' }),
+    );
+  });
+
+  it('resendConfirmationToClient registra failed en vez de sent cuando el envío falla', async () => {
+    process.env.BREVO_API_KEY = 'fake-key';
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500, text: async () => 'Brevo caído' }) as any;
+
+    const { svc, logRepo } = makeService();
+    await svc.resendConfirmationToClient(apptWithToken, client, professional, { name: 'Consulta' });
+
+    expect(logRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ appointmentId: 42, event: 'reminder', status: 'failed' }),
+    );
+  });
+});
+
+describe('NotificationsService — emails de bienvenida devuelven si salieron o no', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    delete process.env.BREVO_API_KEY;
+    jest.restoreAllMocks();
+  });
+
+  it('sendWelcomeProfessional devuelve false si Brevo falla', async () => {
+    process.env.BREVO_API_KEY = 'fake-key';
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500, text: async () => 'error' }) as any;
+    const { svc } = makeService();
+
+    const result = await svc.sendWelcomeProfessional({
+      toEmail: 'dr@test.com', professionalName: 'Dr. X', email: 'dr@test.com', resetToken: 'x', slug: 'dr-x',
+    });
+
+    expect(result).toBe(false);
+  });
+
+  it('sendWelcomeSecretary devuelve true si el envío sale bien', async () => {
+    process.env.BREVO_API_KEY = 'fake-key';
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, text: async () => '' }) as any;
+    const { svc } = makeService();
+
+    const result = await svc.sendWelcomeSecretary({ toEmail: 'ana@test.com', name: 'Ana', token: 'x' });
+
+    expect(result).toBe(true);
+  });
+});
