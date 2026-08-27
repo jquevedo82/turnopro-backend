@@ -4,6 +4,7 @@
  */
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { ProfessionalsService } from './professionals.service';
+import { localDateString, addDays } from '../../common/utils/timezone';
 
 function makeProf(overrides: Partial<any> = {}): any {
   return { id: 1, name: 'Dr. García', email: 'dr@test.com', slug: 'dr-garcia', password: 'hash', ...overrides };
@@ -47,6 +48,56 @@ describe('ProfessionalsService.create()', () => {
     await expect(
       svc.create({ name: 'Dr. X', email: 'shared@test.com', slug: 'dr-x', profession: 'Médico' })
     ).rejects.toThrow(ConflictException);
+  });
+
+  it('informa emailSent=false si el email de bienvenida falla, sin romper la creación', async () => {
+    const saved = { id: 1, email: 'dr@test.com', name: 'Dr. X', slug: 'dr-x' };
+    const repo = {
+      findOne: jest.fn().mockResolvedValue(null),
+      save:    jest.fn().mockResolvedValue(saved),
+      create:  jest.fn((e) => e),
+      update:  jest.fn().mockResolvedValue(undefined),
+    };
+    const notifications = { sendWelcomeProfessional: jest.fn().mockResolvedValue(false) };
+    const svc = new (ProfessionalsService as any)(repo, makeSecretaryRepo(), notifications);
+
+    const result = await svc.create({ name: 'Dr. X', email: 'dr@test.com', slug: 'dr-x', profession: 'Médico' });
+
+    expect(notifications.sendWelcomeProfessional).toHaveBeenCalled();
+    expect((result as any).emailSent).toBe(false);
+  });
+
+  it('informa emailSent=true si el email de bienvenida sale bien', async () => {
+    const saved = { id: 1, email: 'dr@test.com', name: 'Dr. X', slug: 'dr-x' };
+    const repo = {
+      findOne: jest.fn().mockResolvedValue(null),
+      save:    jest.fn().mockResolvedValue(saved),
+      create:  jest.fn((e) => e),
+      update:  jest.fn().mockResolvedValue(undefined),
+    };
+    const notifications = { sendWelcomeProfessional: jest.fn().mockResolvedValue(true) };
+    const svc = new (ProfessionalsService as any)(repo, makeSecretaryRepo(), notifications);
+
+    const result = await svc.create({ name: 'Dr. X', email: 'dr@test.com', slug: 'dr-x', profession: 'Médico' });
+
+    expect((result as any).emailSent).toBe(true);
+  });
+});
+
+describe('ProfessionalsService.resendWelcome()', () => {
+  it('devuelve emailSent=false y un mensaje claro si el envío falla', async () => {
+    const professional = { id: 1, email: 'dr@test.com', name: 'Dr. X', slug: 'dr-x' };
+    const repo = {
+      findOne: jest.fn().mockResolvedValue(professional),
+      update:  jest.fn().mockResolvedValue(undefined),
+    };
+    const notifications = { sendWelcomeProfessional: jest.fn().mockResolvedValue(false) };
+    const svc = new (ProfessionalsService as any)(repo, makeSecretaryRepo(), notifications);
+
+    const result = await svc.resendWelcome(1);
+
+    expect(result.emailSent).toBe(false);
+    expect(result.message).toContain('No se pudo enviar');
   });
 });
 
@@ -131,5 +182,40 @@ describe('ProfessionalsService.update()', () => {
     const svc = new (ProfessionalsService as any)(repo, makeSecretaryRepo(), {});
 
     await expect(svc.update(99, { name: 'Test' })).rejects.toThrow(NotFoundException);
+  });
+});
+
+describe('ProfessionalsService.isSubscriptionExpired()', () => {
+  const svc = makeService();
+
+  it('false si subscriptionEnd es null (profesional sin plan asignado nunca)', () => {
+    expect(svc.isSubscriptionExpired(makeProf({ subscriptionEnd: null }))).toBe(false);
+  });
+
+  it('false el mismo día del vencimiento (todavía es válido todo ese día local)', () => {
+    const today = localDateString(-3); // "hoy" en Argentina
+    expect(svc.isSubscriptionExpired(makeProf({ subscriptionEnd: today, phone: '+5491112345678' }))).toBe(false);
+  });
+
+  it('false dentro de los 3 días de gracia', () => {
+    const threeDaysAgo = addDays(localDateString(-3), -3);
+    expect(svc.isSubscriptionExpired(makeProf({ subscriptionEnd: threeDaysAgo, phone: '+5491112345678' }))).toBe(false);
+  });
+
+  it('true una vez pasados los 3 días de gracia', () => {
+    const fourDaysAgo = addDays(localDateString(-3), -4);
+    expect(svc.isSubscriptionExpired(makeProf({ subscriptionEnd: fourDaysAgo, phone: '+5491112345678' }))).toBe(true);
+  });
+
+  it('usa el huso de Venezuela (-4) para un profesional con +58', () => {
+    // vencido hace 4 días en huso Venezuela → true
+    const fourDaysAgoVE = addDays(localDateString(-4), -4);
+    expect(svc.isSubscriptionExpired(makeProf({ subscriptionEnd: fourDaysAgoVE, phone: '+584121234567' }))).toBe(true);
+  });
+
+  it('acepta subscriptionEnd como Date (columna type: date de TypeORM) además de string', () => {
+    const fourDaysAgo = addDays(localDateString(-3), -4);
+    const asDate = new Date(fourDaysAgo + 'T00:00:00.000Z');
+    expect(svc.isSubscriptionExpired(makeProf({ subscriptionEnd: asDate, phone: '+5491112345678' }))).toBe(true);
   });
 });

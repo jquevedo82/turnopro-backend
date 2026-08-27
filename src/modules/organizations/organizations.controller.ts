@@ -17,6 +17,8 @@ import {
   Body, Param, ParseIntPipe, UseGuards,
 } from '@nestjs/common';
 import { OrganizationsService } from './organizations.service';
+import { CreateOrganizationDto } from './dto/create-organization.dto';
+import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { JwtAuthGuard }         from '../../common/guards/jwt-auth.guard';
 import { RolesGuard }           from '../../common/guards/roles.guard';
 import { Roles }                from '../../common/decorators/roles.decorator';
@@ -63,13 +65,7 @@ export class OrganizationsController {
    * Body: { name, slug?, address?, phone?, email? }
    */
   @Post()
-  create(@Body() dto: {
-    name:     string;
-    slug?:    string;
-    address?: string;
-    phone?:   string;
-    email?:   string;
-  }) {
+  create(@Body() dto: CreateOrganizationDto) {
     return this.svc.create(dto);
   }
 
@@ -81,14 +77,7 @@ export class OrganizationsController {
   @Patch(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: Partial<{
-      name:     string;
-      slug:     string;
-      address:  string;
-      phone:    string;
-      email:    string;
-      isActive: boolean;
-    }>,
+    @Body() dto: UpdateOrganizationDto,
   ) {
     return this.svc.update(id, dto);
   }

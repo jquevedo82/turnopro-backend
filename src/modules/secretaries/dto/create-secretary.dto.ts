@@ -1,5 +1,5 @@
 import { IsString, IsEmail, IsOptional } from 'class-validator';
-import { IsPhoneAR_VE }                  from '../../../common/validators/phone.validator';
+import { IsSupportedPhone }                  from '../../../common/validators/phone.validator';
 
 export class CreateSecretaryDto {
   @IsString()
@@ -8,7 +8,7 @@ export class CreateSecretaryDto {
   @IsEmail({}, { message: 'El email no es válido' })
   email: string;
 
-  @IsPhoneAR_VE()
+  @IsSupportedPhone()
   @IsOptional()
   phone?: string;
 }

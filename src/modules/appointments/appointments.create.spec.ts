@@ -3,7 +3,7 @@
  * Tests unitarios del fix de race condition en create(): lock nombrado por
  * (profesional, fecha) + re-chequeo de choque de horario dentro de la transacción.
  */
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service';
 import { AppointmentStatus }   from './appointment-status.enum';
 
@@ -28,7 +28,10 @@ function makeManager(existing: { startTime: string; endTime: string }[], lockAcq
 function makeService(manager: ReturnType<typeof makeManager>) {
   const repo = { manager: { transaction: jest.fn((cb: any) => cb(manager)) } };
   const clientsService = { findOrCreate: jest.fn().mockResolvedValue({ id: 5 }) };
-  const professionalsService = { findOne: jest.fn().mockResolvedValue({ id: 10, autoConfirm: false }) };
+  const professionalsService = {
+    findOne: jest.fn().mockResolvedValue({ id: 10, autoConfirm: false }),
+    isSubscriptionExpired: jest.fn().mockReturnValue(false),
+  };
   const servicesService = { findOne: jest.fn().mockResolvedValue({ id: 1, durationMinutes: 30 }) };
   const availabilityService = { getAvailableSlots: jest.fn().mockResolvedValue(['09:00', '09:30', '10:00']) };
   const notificationsService = {
@@ -87,6 +90,17 @@ describe('AppointmentsService.create() — race condition', () => {
 
     await expect(svc.create(baseDto as any)).resolves.toBeDefined();
     expect(manager.save).toHaveBeenCalled();
+  });
+
+  it('rechaza con ForbiddenException si el profesional tiene la suscripción vencida', async () => {
+    const manager = makeManager([]);
+    const { svc, professionalsService } = makeService(manager);
+    professionalsService.isSubscriptionExpired.mockReturnValue(true);
+
+    await expect(svc.create(baseDto as any)).rejects.toThrow(ForbiddenException);
+    expect(manager.save).not.toHaveBeenCalled();
+    // ni siquiera se llega a pedir el lock — la agenda existente no se toca
+    expect(manager.query).not.toHaveBeenCalled();
   });
 
   it('rechaza con mensaje de reintento si no logra adquirir el lock (GET_LOCK timeout)', async () => {

@@ -9,9 +9,14 @@ import { AppModule } from './app.module';
 import { appConfig } from './config/app.config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import compression from 'compression';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Comprime todas las respuestas (gzip) — importante para la página pública en
+  // conexión móvil floja (Argentina/Venezuela), pero no cuesta nada aplicarlo global.
+  app.use(compression());
 
   app.setGlobalPrefix('api');
 

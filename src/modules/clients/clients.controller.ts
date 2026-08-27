@@ -13,7 +13,7 @@ export class ClientsController {
   constructor(private readonly svc: ClientsService) {}
 
   /**
-   * GET /clients?professionalId=X
+   * GET /clients?professionalId=X&page=1&limit=50
    * Secretaria pasa professionalId del profesional activo.
    * Profesional no pasa nada — se usa su propio id del JWT.
    */
@@ -22,16 +22,22 @@ export class ClientsController {
   findAll(
     @CurrentUser() user: JwtPayload,
     @Query('professionalId') professionalId?: string,
+    @Query('page')  page?: string,
+    @Query('limit') limit?: string,
   ) {
-    if (user.role === Role.SECRETARY && professionalId) {
-      return this.svc.findByProfessional(Number(professionalId));
-    }
-    return this.svc.findByProfessional(getProfessionalId(user));
+    const id = user.role === Role.SECRETARY && professionalId
+      ? Number(professionalId)
+      : getProfessionalId(user);
+    return this.svc.findClientsPage(id, Number(page) || 1, Number(limit) || 50);
   }
 
   @Get('my')
   @Roles(Role.PROFESSIONAL)
-  findMy(@CurrentUser() user: JwtPayload) {
-    return this.svc.findByProfessional(getProfessionalId(user));
+  findMy(
+    @CurrentUser() user: JwtPayload,
+    @Query('page')  page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.svc.findClientsPage(getProfessionalId(user), Number(page) || 1, Number(limit) || 50);
   }
 }

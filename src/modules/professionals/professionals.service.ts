@@ -5,7 +5,9 @@
  * Responsabilidad: CRUD de profesionales. Solo accesible por el superadmin.
  *
  * Para cambiar las reglas de activación de suscripción:
- *   Modificar activate() y checkSubscriptions()
+ *   Modificar activate() y isSubscriptionExpired()
+ * Para cambiar el aviso de vencimiento próximo:
+ *   Modificar sendSubscriptionExpiryWarnings() (cron diario)
  * Para enviar email de bienvenida al crear profesional:
  *   Inyectar NotificationsService y llamarlo en create()
  * ─────────────────────────────────────────────────────────────────────────────
@@ -15,16 +17,26 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository }       from 'typeorm';
+import { Cron }             from '@nestjs/schedule';
 import * as bcrypt          from 'bcrypt';
 import * as crypto          from 'crypto';
 import { Professional }     from './professional.entity';
 import { Secretary }       from '../secretaries/secretary.entity';
 import { CreateProfessionalDto }  from './dto/create-professional.dto';
 import { NotificationsService }   from '../notifications/notifications.service';
+import { resolveTzOffsetHours, localDateString, addDays, dateOnly } from '../../common/utils/timezone';
 
 // Rondas de salt para bcrypt. A mayor número, más seguro pero más lento.
 // Para cambiar: modificar este valor. Recomendado entre 10 y 12.
 const BCRYPT_ROUNDS = 10;
+
+// Días de gracia después de subscriptionEnd antes de bloquear nuevas reservas.
+// Para cambiar: variable de entorno SUBSCRIPTION_GRACE_DAYS.
+const SUBSCRIPTION_GRACE_DAYS = parseInt(process.env.SUBSCRIPTION_GRACE_DAYS ?? '3', 10);
+
+// Días de anticipación para el email de aviso de vencimiento próximo.
+// Para cambiar: variable de entorno SUBSCRIPTION_WARNING_DAYS_BEFORE.
+const SUBSCRIPTION_WARNING_DAYS_BEFORE = parseInt(process.env.SUBSCRIPTION_WARNING_DAYS_BEFORE ?? '5', 10);
 
 @Injectable()
 export class ProfessionalsService {
@@ -102,42 +114,39 @@ export class ProfessionalsService {
     });
 
     // Enviar email de bienvenida con link para configurar contraseña
-    try {
-      await this.notifications.sendWelcomeProfessional({
-        toEmail:          saved.email,
-        professionalName: saved.name,
-        email:            saved.email,
-        resetToken,
-        slug:             saved.slug,
-      });
-      console.log('Email de bienvenida enviado a:', saved.email);
-    } catch (err: any) {
-      console.error('=== ERROR EMAIL BIENVENIDA ===');
-      console.error('Destinatario:', saved.email);
-      console.error('Mensaje:', err?.message);
-      console.error('Código:', err?.code);
-      console.error('Response:', err?.response);
-      console.error('Stack:', err?.stack);
-      console.error('==============================');
-    }
+    const emailSent = await this.notifications.sendWelcomeProfessional({
+      toEmail:          saved.email,
+      professionalName: saved.name,
+      email:            saved.email,
+      resetToken,
+      slug:             saved.slug,
+    });
+    // sendEmail() ya loguea el detalle del error internamente si falla — acá solo
+    // necesitamos que el superadmin se entere en el momento, no en los logs de Render
+    (saved as any).emailSent = emailSent;
 
     return saved;
   }
 
   /** Regenera el token de configuración y reenvía el email de bienvenida */
-  async resendWelcome(id: number): Promise<{ message: string }> {
+  async resendWelcome(id: number): Promise<{ message: string; emailSent: boolean }> {
     const professional = await this.findOne(id);
     const resetToken   = crypto.randomBytes(32).toString('hex');
     const resetExpiry  = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await this.repo.update(id, { resetToken, resetTokenExpiry: resetExpiry });
-    await this.notifications.sendWelcomeProfessional({
+    const emailSent = await this.notifications.sendWelcomeProfessional({
       toEmail:          professional.email,
       professionalName: professional.name,
       email:            professional.email,
       resetToken,
       slug:             professional.slug,
     });
-    return { message: `Email de configuración reenviado a ${professional.email}` };
+    return {
+      message: emailSent
+        ? `Email de configuración reenviado a ${professional.email}`
+        : `No se pudo enviar el email a ${professional.email} — probá de nuevo en unos minutos`,
+      emailSent,
+    };
   }
 
   /** Actualiza datos del profesional. Para campos restringidos: agregar validaciones aquí. */
@@ -184,6 +193,8 @@ export class ProfessionalsService {
       isActive:          true,
       subscriptionStart: new Date(),
       subscriptionEnd,
+      // Nuevo ciclo de suscripción → el próximo aviso de vencimiento debe poder enviarse de nuevo
+      subscriptionWarningSentAt: null,
     });
     return this.findOne(id);
   }
@@ -195,6 +206,81 @@ export class ProfessionalsService {
   async deactivate(id: number): Promise<Professional> {
     await this.repo.update(id, { isActive: false });
     return this.findOne(id);
+  }
+
+  /**
+   * True si venció la suscripción (subscriptionEnd + SUBSCRIPTION_GRACE_DAYS ya pasó),
+   * calculado en la fecha-calendario LOCAL del profesional (huso resuelto por prefijo
+   * de teléfono +54/+58) — no en la fecha del servidor (Render corre en UTC). Mismo
+   * motivo que el fix de availability.service.ts: comparar por fecha del servidor
+   * corta el acceso hasta 4hs antes/después de lo que corresponde en Argentina/Venezuela.
+   *
+   * No bloquea nada por sí sola — no reemplaza isActive (que sigue siendo el
+   * apagado manual del superadmin). Hoy solo se usa para bloquear NUEVAS reservas
+   * (ver AppointmentsService.create()); el panel, la agenda existente y el login
+   * siguen funcionando aunque haya vencido — decisión de producto 2026-07-20.
+   */
+  isSubscriptionExpired(professional: Professional): boolean {
+    if (!professional.subscriptionEnd) return false;
+    const offset     = resolveTzOffsetHours(professional.phone);
+    const todayLocal = localDateString(offset);
+    const validThrough = addDays(dateOnly(professional.subscriptionEnd), SUBSCRIPTION_GRACE_DAYS);
+    return todayLocal > validThrough;
+  }
+
+  /**
+   * Cron diario: avisa por email a los profesionales cuya suscripción vence en
+   * SUBSCRIPTION_WARNING_DAYS_BEFORE días (default 5), en la fecha-calendario LOCAL de cada
+   * uno (mismo motivo que isSubscriptionExpired() y common/utils/timezone.ts).
+   *
+   * A diferencia del bloqueo de reservas nuevas (que se calcula al vuelo, sin cron), esto
+   * necesita ser proactivo — no depende de que el profesional haga un request.
+   *
+   * Idempotente y con catch-up: usa `todayLocal >= warnDate` (no `===`), así que si el cron
+   * no corre justo el día exacto (el servidor estuvo caído, por ejemplo), igual manda el
+   * aviso en la próxima corrida en vez de perder la ventana en silencio.
+   * `subscriptionWarningSentAt` evita reenviar una vez que ya se avisó en este ciclo — se
+   * resetea a null en activate() cuando el superadmin renueva.
+   */
+  @Cron('0 9 * * *') // Todos los días a las 09:00hs (hora del servidor)
+  async sendSubscriptionExpiryWarnings(): Promise<void> {
+    const professionals = await this.repo.find({ where: { isActive: true } });
+
+    let sent = 0;
+    for (const professional of professionals) {
+      if (!professional.subscriptionEnd || professional.subscriptionWarningSentAt) continue;
+
+      const offset      = resolveTzOffsetHours(professional.phone);
+      const todayLocal   = localDateString(offset);
+      const endDateStr   = dateOnly(professional.subscriptionEnd);
+      const warnDate     = addDays(endDateStr, -SUBSCRIPTION_WARNING_DAYS_BEFORE);
+      if (todayLocal < warnDate) continue; // todavía no llegó el día de avisar
+
+      // Ya venció del todo (o está en gracia) — no tiene sentido "avisar que vence pronto"
+      if (this.isSubscriptionExpired(professional)) continue;
+
+      try {
+        const daysLeft = this.diffDays(endDateStr, todayLocal);
+        await this.notifications.sendSubscriptionExpiryWarning({
+          toEmail:            professional.email,
+          professionalName:   professional.name,
+          subscriptionEndStr: endDateStr,
+          daysLeft:           Math.max(daysLeft, 0),
+        });
+        await this.repo.update(professional.id, { subscriptionWarningSentAt: new Date() });
+        sent++;
+      } catch (err) {
+        console.error(`[Cron subscription warning] Error con profesional ${professional.id}: ${err.message}`);
+      }
+    }
+    if (sent > 0) console.log(`[Cron] ${sent} avisos de vencimiento de suscripción enviados`);
+  }
+
+  /** Diferencia en días entre dos fechas 'YYYY-MM-DD' (end - from). */
+  private diffDays(endDateStr: string, fromDateStr: string): number {
+    const end  = new Date(endDateStr   + 'T00:00:00Z').getTime();
+    const from = new Date(fromDateStr  + 'T00:00:00Z').getTime();
+    return Math.round((end - from) / (24 * 3600_000));
   }
 
   async changePassword(id: number, currentPassword: string, newPassword: string) {

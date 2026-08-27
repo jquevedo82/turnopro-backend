@@ -39,6 +39,23 @@ describe('validatePhone()', () => {
     expect(validatePhone('+5841212345678')).toBe(false);  // 11 dígitos
   });
 
+  // ── Colombia ───────────────────────────────────────────────────────────────
+  it('acepta número colombiano con 10 dígitos', () => {
+    expect(validatePhone('+573001234567')).toBe(true);    // 10 dígitos
+  });
+
+  it('acepta número colombiano con espacios intermedios', () => {
+    expect(validatePhone('+57 300 123 4567')).toBe(true);
+  });
+
+  it('rechaza número colombiano con 9 dígitos', () => {
+    expect(validatePhone('+57300123456')).toBe(false);    // 9 dígitos
+  });
+
+  it('rechaza número colombiano con 11 dígitos', () => {
+    expect(validatePhone('+5730012345678')).toBe(false);  // 11 dígitos
+  });
+
   // ── Otros países / formatos inválidos ─────────────────────────────────────
   it('rechaza número sin código de país', () => {
     expect(validatePhone('01112345678')).toBe(false);

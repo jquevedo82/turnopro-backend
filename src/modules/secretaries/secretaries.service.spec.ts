@@ -32,6 +32,25 @@ function makeService(secOverrides: Partial<any> = {}, profOverrides: Partial<any
 const baseDto    = { name: 'Ana López', email: 'ana@test.com', organizationId: 1 };
 const existingSec = { id: 10, name: 'Ana López', email: 'ana@test.com', isActive: true };
 
+describe('SecretariesService.getProfessionalsForSecretary()', () => {
+  it('incluye country en el select — la secretaria necesita el país del profesional para el selector de teléfono', async () => {
+    const findSpy = jest.fn().mockResolvedValue([]);
+    const svc = makeService({
+      findOne: jest.fn().mockResolvedValue({ id: 10, organizationId: 1 }),
+    }, {
+      find: findSpy,
+    });
+
+    await svc.getProfessionalsForSecretary(10);
+
+    expect(findSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.arrayContaining(['country']),
+      }),
+    );
+  });
+});
+
 describe('SecretariesService.create()', () => {
   it('crea la secretaria cuando el email no está en uso', async () => {
     const svc = makeService();

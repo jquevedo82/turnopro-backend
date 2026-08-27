@@ -90,15 +90,19 @@ export class NotificationsService {
       emailGreeting:     vc.emailGreeting,
     });
 
-    await this.sendEmail({
-      to:      client.email,
-      subject: isPending
-        ? `Tu solicitud de ${vc.appointmentLabel.toLowerCase()} con ${professional.name} fue recibida`
-        : `Tu ${vc.appointmentLabel.toLowerCase()} con ${professional.name} está confirmada ✅`,
-      html,
-    });
-
-    await this.logNotification(appointment.id, 'email', 'confirmation');
+    try {
+      const result = await this.sendEmail({
+        to:      client.email,
+        subject: isPending
+          ? `Tu solicitud de ${vc.appointmentLabel.toLowerCase()} con ${professional.name} fue recibida`
+          : `Tu ${vc.appointmentLabel.toLowerCase()} con ${professional.name} está confirmada ✅`,
+        html,
+      });
+      await this.logNotification(appointment.id, 'email', 'confirmation', result.success ? 'sent' : 'failed', result.error);
+    } catch (err) {
+      this.logger.error(`Error enviando confirmación al cliente: ${err.message}`);
+      await this.logNotification(appointment.id, 'email', 'confirmation', 'failed', err.message);
+    }
   }
 
   /**
@@ -165,13 +169,17 @@ export class NotificationsService {
       emailGreeting:    vc.emailGreeting,
     });
 
-    await this.sendEmail({
-      to:      client.email,
-      subject: `Recordatorio: tu ${vc.appointmentLabel.toLowerCase()} con ${professional.name} 📅`,
-      html,
-    });
-
-    await this.logNotification(appointment.id, 'email', 'reminder');
+    try {
+      const result = await this.sendEmail({
+        to:      client.email,
+        subject: `Recordatorio: tu ${vc.appointmentLabel.toLowerCase()} con ${professional.name} 📅`,
+        html,
+      });
+      await this.logNotification(appointment.id, 'email', 'reminder', result.success ? 'sent' : 'failed', result.error);
+    } catch (err) {
+      this.logger.error(`Error reenviando confirmación al cliente: ${err.message}`);
+      await this.logNotification(appointment.id, 'email', 'reminder', 'failed', err.message);
+    }
   }
 
   /** Envía email de cancelación al cliente cuando el profesional cancela su cita */
@@ -271,14 +279,15 @@ export class NotificationsService {
     `;
 
     try {
-      await this.sendEmail({
+      const result = await this.sendEmail({
         to:      professional.publicEmail || professional.email,
         subject: `Nueva ${apptL}: ${client.name} — ${appointment.date} ${appointment.startTime}`,
         html,
       });
-      await this.logNotification(appointment.id, 'email', 'new_appointment_pro');
+      await this.logNotification(appointment.id, 'email', 'new_appointment_pro', result.success ? 'sent' : 'failed', result.error);
     } catch (err) {
       this.logger.error(`Error notificando al profesional ${professional.email}: ${err.message}`);
+      await this.logNotification(appointment.id, 'email', 'new_appointment_pro', 'failed', err.message);
     }
 
     // ── WhatsApp al médico (solo si tiene número configurado) ─────────────────
@@ -328,14 +337,15 @@ export class NotificationsService {
       emailGreeting:     vc.emailGreeting,
     });
     try {
-      await this.sendEmail({
+      const result = await this.sendEmail({
         to:      client.email,
         subject: `✅ Tu ${vc.appointmentLabel.toLowerCase()} con ${professional.name} fue confirmada`,
         html,
       });
-      await this.logNotification(appointment.id, 'email', 'confirmed_by_pro');
+      await this.logNotification(appointment.id, 'email', 'confirmed_by_pro', result.success ? 'sent' : 'failed', result.error);
     } catch (err) {
       this.logger.error(`Error notificando confirmación al cliente: ${err.message}`);
+      await this.logNotification(appointment.id, 'email', 'confirmed_by_pro', 'failed', err.message);
     }
   }
 
@@ -387,14 +397,15 @@ export class NotificationsService {
       </div>
     `;
     try {
-      await this.sendEmail({
+      const result = await this.sendEmail({
         to:      client.email,
         subject: `Tu ${apptL2} con ${professional.name} fue cancelada`,
         html,
       });
-      await this.logNotification(appointment.id, 'email', 'cancelled');
+      await this.logNotification(appointment.id, 'email', 'cancelled', result.success ? 'sent' : 'failed', result.error);
     } catch (err) {
       this.logger.error(`Error notificando cancelación al cliente: ${err.message}`);
+      await this.logNotification(appointment.id, 'email', 'cancelled', 'failed', err.message);
     }
 
     // Notificar al médico solo si canceló el paciente
@@ -436,14 +447,15 @@ export class NotificationsService {
         </div>
       `;
       try {
-        await this.sendEmail({
+        const result = await this.sendEmail({
           to:      professional.publicEmail || professional.email,
           subject: `❌ ${client.name} canceló su ${apptL2} del ${appointment.date}`,
           html:    proHtml,
         });
-        await this.logNotification(appointment.id, 'email', 'cancelled_notify_pro');
+        await this.logNotification(appointment.id, 'email', 'cancelled_notify_pro', result.success ? 'sent' : 'failed', result.error);
       } catch (err) {
         this.logger.error(`Error notificando cancelación al profesional: ${err.message}`);
+        await this.logNotification(appointment.id, 'email', 'cancelled_notify_pro', 'failed', err.message);
       }
     }
   }
@@ -476,14 +488,15 @@ export class NotificationsService {
       emailGreeting:     vc.emailGreeting,
     });
     try {
-      await this.sendEmail({
+      const result = await this.sendEmail({
         to:      client.email,
         subject: `⏰ Recordatorio: tu ${vc.appointmentLabel.toLowerCase()} con ${professional.name} es mañana`,
         html,
       });
-      await this.logNotification(appointment.id, 'email', 'auto_reminder');
+      await this.logNotification(appointment.id, 'email', 'auto_reminder', result.success ? 'sent' : 'failed', result.error);
     } catch (err) {
       this.logger.error(`Error enviando recordatorio automático: ${err.message}`);
+      await this.logNotification(appointment.id, 'email', 'auto_reminder', 'failed', err.message);
     }
   }
 
@@ -525,14 +538,15 @@ export class NotificationsService {
       </div>
     `;
     try {
-      await this.sendEmail({
+      const result = await this.sendEmail({
         to:      professional.publicEmail || professional.email,
         subject: `✅ ${client.name} confirmó su ${apptL} del ${appointment.date}`,
         html,
       });
-      await this.logNotification(appointment.id, 'email', 'reconfirmed_by_client');
+      await this.logNotification(appointment.id, 'email', 'reconfirmed_by_client', result.success ? 'sent' : 'failed', result.error);
     } catch (err) {
       this.logger.error(`Error notificando reconfirmación al médico: ${err.message}`);
+      await this.logNotification(appointment.id, 'email', 'reconfirmed_by_client', 'failed', err.message);
     }
   }
 
@@ -543,8 +557,10 @@ export class NotificationsService {
     appointment: Appointment,
     client:       Client,
     professional: Professional,
+    reviewToken?: string,
   ): Promise<void> {
     const rebookLink = `${this.appUrl}/${professional.slug}`;
+    const reviewLink = reviewToken ? `${this.appUrl}/resena/${reviewToken}` : null;
     const vc         = getVerticalConfig(professional.professionalType);
     const apptL      = vc.appointmentLabel.toLowerCase();
     const html = `
@@ -556,6 +572,13 @@ export class NotificationsService {
         <div style="background:#fff;padding:28px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
           <p>${vc.emailGreeting} <strong>${NotificationsService.esc(client.name)}</strong>,</p>
           <p>Gracias por tu visita con <strong>${NotificationsService.esc(professional.name)}</strong>. Esperamos que haya sido de tu agrado.</p>
+          ${reviewLink ? `
+          <div style="text-align:center;margin:20px 0">
+            <a href="${reviewLink}"
+               style="background:#f59e0b;color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-weight:bold;font-size:14px;display:inline-block">
+              ⭐ Contanos cómo te fue →
+            </a>
+          </div>` : ''}
           <p style="color:#6b7280;font-size:14px">¿Necesitás otra ${apptL}? Podés reservar fácilmente:</p>
           <div style="text-align:center;margin:24px 0">
             <a href="${rebookLink}"
@@ -568,14 +591,15 @@ export class NotificationsService {
       </div>
     `;
     try {
-      await this.sendEmail({
+      const result = await this.sendEmail({
         to:      client.email,
         subject: `¡Gracias por tu visita con ${professional.name}! 🙏`,
         html,
       });
-      await this.logNotification(appointment.id, 'email', 'completed');
+      await this.logNotification(appointment.id, 'email', 'completed', result.success ? 'sent' : 'failed', result.error);
     } catch (err) {
       this.logger.error(`Error enviando email de cita completada: ${err.message}`);
+      await this.logNotification(appointment.id, 'email', 'completed', 'failed', err.message);
     }
   }
 
@@ -660,13 +684,14 @@ export class NotificationsService {
     });
   }
 
+  /** @returns true si el email salió — false si falló, para que el caller pueda avisar (no queda registro en notifications_log: no hay appointmentId al que atarlo) */
   async sendWelcomeProfessional(options: {
     toEmail:          string;
     professionalName: string;
     email:            string;
     resetToken:       string;
     slug:             string;
-  }): Promise<void> {
+  }): Promise<boolean> {
     const setupUrl   = `${this.appUrl}/reset-password?token=${options.resetToken}`;
     const bookingUrl = `${this.appUrl}/${options.slug}`;
     const html = `
@@ -713,23 +738,25 @@ export class NotificationsService {
         </div>
       </div>
     `;
-    await this.sendEmail({
+    const result = await this.sendEmail({
       to:      options.toEmail,
       subject: `Bienvenido/a a TurnoPro — Configurá tu contraseña`,
       html,
     });
+    return result.success;
   }
 
   /**
    * Email de bienvenida para secretarias.
    * Mismo mecanismo que sendWelcomeProfessional — link para configurar contraseña.
    * El token usa el mismo endpoint /reset-password que comparten todos los roles.
+   * @returns true si el email salió — false si falló, para que el caller pueda avisar
    */
   async sendWelcomeSecretary(options: {
     toEmail: string;
     name:    string;
     token:   string;
-  }): Promise<void> {
+  }): Promise<boolean> {
     const setupUrl = `${this.appUrl}/reset-password?token=${options.token}`;
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#f9fafb;padding:20px">
@@ -769,11 +796,12 @@ export class NotificationsService {
         </div>
       </div>
     `;
-    await this.sendEmail({
+    const result = await this.sendEmail({
       to:      options.toEmail,
       subject: 'TurnoPro — Configurá tu contraseña de secretaria',
       html,
     });
+    return result.success;
   }
 
   /** Notifica al usuario cuando el superadmin cambia su email de acceso */
@@ -830,7 +858,55 @@ export class NotificationsService {
     });
   }
 
-  private async sendEmail(options: { to: string; subject: string; html: string }): Promise<void> {
+  /**
+   * Aviso de vencimiento próximo de suscripción. Enviado por
+   * ProfessionalsService.sendSubscriptionExpiryWarnings() (cron), no bloquea nada por sí solo —
+   * solo avisa. El bloqueo real de reservas nuevas lo hace isSubscriptionExpired() por separado.
+   */
+  async sendSubscriptionExpiryWarning(options: {
+    toEmail:           string;
+    professionalName:  string;
+    subscriptionEndStr: string; // 'YYYY-MM-DD'
+    daysLeft:          number;
+  }): Promise<void> {
+    const name = NotificationsService.esc(options.professionalName);
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#f9fafb;padding:20px">
+        <div style="background:#0f2342;border-radius:12px 12px 0 0;padding:28px;text-align:center">
+          <h1 style="color:#fff;margin:0;font-size:26px">TurnoPro</h1>
+          <p style="color:#93c5fd;margin:6px 0 0;font-size:14px">Sistema de gestión de citas</p>
+        </div>
+        <div style="background:#fff;padding:32px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb">
+          <h2 style="color:#0f2342;margin-top:0">Tu suscripción vence pronto</h2>
+          <p style="color:#4b5563">
+            Hola <strong>${name}</strong>, tu suscripción a TurnoPro vence el
+            <strong>${options.subscriptionEndStr}</strong> (en ${options.daysLeft} día${options.daysLeft === 1 ? '' : 's'}).
+          </p>
+
+          <div style="background:#fffbeb;border-radius:10px;padding:16px;margin:24px 0;border:1px solid #fde68a">
+            <p style="color:#92400e;font-size:13px;margin:0">
+              ⚠️ Una vez vencida, tu página pública deja de aceptar <strong>reservas nuevas</strong>.
+              Tu agenda actual y el acceso al panel no se ven afectados.
+            </p>
+          </div>
+
+          <p style="color:#4b5563">Contactanos para renovar y que no se interrumpa la reserva de turnos nuevos.</p>
+
+          <p style="color:#9ca3af;font-size:12px;text-align:center;margin-top:28px;
+                    border-top:1px solid #f3f4f6;padding-top:16px">
+            TurnoPro — Tu turno en un clic
+          </p>
+        </div>
+      </div>
+    `;
+    await this.sendEmail({
+      to:      options.toEmail,
+      subject: `TurnoPro — Tu suscripción vence en ${options.daysLeft} día${options.daysLeft === 1 ? '' : 's'}`,
+      html,
+    });
+  }
+
+  private async sendEmail(options: { to: string; subject: string; html: string }): Promise<{ success: boolean; error?: string }> {
     const brevoKey = process.env.BREVO_API_KEY;
 
     try {
@@ -867,9 +943,11 @@ export class NotificationsService {
         });
         this.logger.log(`[sendEmail] SMTP OK → ${options.to}: ${options.subject}`);
       }
+      return { success: true };
     } catch (error) {
       this.logger.error(`[sendEmail] ERROR enviando a ${options.to} | subject: ${options.subject}`);
       this.logger.error(`[sendEmail] Detalle: ${error.message}`);
+      return { success: false, error: error.message };
     }
   }
 

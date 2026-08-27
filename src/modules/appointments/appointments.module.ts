@@ -9,12 +9,14 @@ import { ServicesModule }        from '../services/services.module';
 import { AvailabilityModule }    from '../availability/availability.module';
 import { NotificationsModule }   from '../notifications/notifications.module';
 import { SecretariesModule } from '../secretaries/secretaries.module';
+import { ReviewsModule } from '../reviews/reviews.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Appointment]),
     ClientsModule, ProfessionalsModule, ServicesModule, AvailabilityModule, NotificationsModule,
     SecretariesModule,  // ← agregar
+    ReviewsModule,      // crear la invitación de reseña al completar una cita
   ],
   controllers: [AppointmentsController],
   providers:   [AppointmentsService],

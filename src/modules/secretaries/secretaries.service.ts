@@ -169,7 +169,7 @@ export class SecretariesService {
 
     return this.professionalRepo.find({
       where:  { organizationId: secretary.organizationId, isActive: true },
-      select: ['id', 'name', 'profession', 'slug', 'avatar', 'professionalType'],
+      select: ['id', 'name', 'profession', 'slug', 'avatar', 'professionalType', 'country'],
       order:  { name: 'ASC' },
     });
   }

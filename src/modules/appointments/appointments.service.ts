@@ -3,7 +3,7 @@
  * findOne usa Promise<Appointment | null> correctamente con el operador de aserción.
  */
 import {
-  Injectable, BadRequestException, NotFoundException,
+  Injectable, BadRequestException, ForbiddenException, NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository }       from 'typeorm';
@@ -17,6 +17,8 @@ import { ProfessionalsService } from '../professionals/professionals.service';
 import { ServicesService }      from '../services/services.service';
 import { AvailabilityService }  from '../availability/availability.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ReviewsService } from '../reviews/reviews.service';
+import { resolveTzOffsetHours, localDateString, addDays, SUPPORTED_TZ_OFFSETS } from '../../common/utils/timezone';
 
 @Injectable()
 export class AppointmentsService {
@@ -28,11 +30,22 @@ export class AppointmentsService {
     private readonly servicesService:      ServicesService,
     private readonly availabilityService:  AvailabilityService,
     private readonly notificationsService: NotificationsService,
+    private readonly reviewsService:       ReviewsService,
   ) {}
 
   async create(dto: CreateAppointmentDto): Promise<Appointment> {
     const professional = await this.professionalsService.findOne(dto.professionalId);
     const service      = await this.servicesService.findOne(dto.serviceId);
+
+    // Bloquea SOLO nuevas reservas si venció la suscripción (+ días de gracia) — el panel,
+    // la agenda existente y el login siguen funcionando. Cubre tanto la reserva pública
+    // como la que carga el profesional/secretaria desde el panel: ambas pasan por acá,
+    // es el único punto de creación de citas en el backend.
+    if (this.professionalsService.isSubscriptionExpired(professional)) {
+      throw new ForbiddenException(
+        'Este profesional no puede recibir nuevas reservas en este momento. Contactalo directamente para coordinar.',
+      );
+    }
 
     // Chequeo rápido fuera de la transacción: da un error de UX claro y consistente
     // con lo que el calendario le mostró al usuario (respeta horarios, excepciones,
@@ -238,10 +251,13 @@ export class AppointmentsService {
     });
   }
 
-  getTomorrowAppointments(professionalId: number): Promise<Appointment[]> {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+  // "Mañana" se calcula en la fecha-calendario LOCAL del profesional (huso resuelto por
+  // prefijo de teléfono +54/+58), no en la del servidor (Render corre en UTC) — mismo bug
+  // que ya existía en availability.service.ts, ahora corregido acá también (2026-07-20).
+  async getTomorrowAppointments(professionalId: number): Promise<Appointment[]> {
+    const professional = await this.professionalsService.findOne(professionalId);
+    const offset       = resolveTzOffsetHours(professional.phone);
+    const tomorrowStr  = addDays(localDateString(offset), 1);
     return this.repo.find({
       where: [
         { professionalId, date: tomorrowStr, status: AppointmentStatus.CONFIRMED },
@@ -285,11 +301,12 @@ export class AppointmentsService {
     }
     await this.repo.update(id, { status: AppointmentStatus.COMPLETED });
     await this.professionalsService.bumpQueueUpdatedAt(professionalId);
-    // Enviar email de gracias + rebooking al paciente
+    // Enviar email de gracias + rebooking al paciente, con pedido de reseña
     const completed = await this.repo.findOne({ where: { id }, relations: ['client'] });
     if (completed) {
-      const prof = await this.professionalsService.findOne(professionalId);
-      await this.notificationsService.notifyClientAppointmentCompleted(completed, completed.client, prof);
+      const prof   = await this.professionalsService.findOne(professionalId);
+      const review = await this.reviewsService.createInviteForAppointment(completed, completed.client);
+      await this.notificationsService.notifyClientAppointmentCompleted(completed, completed.client, prof, review.token);
     }
     return this.findById(id);
   }
@@ -418,32 +435,39 @@ export class AppointmentsService {
    * Busca citas de mañana que sean CONFIRMED o RECONFIRMED y no tengan reminderSent,
    * les manda email automático al paciente y marca reminderSent=true.
    */
-  @Cron('0 20 * * *') // Todos los días a las 20:00hs
+  @Cron('0 20 * * *') // Todos los días a las 20:00hs (hora del servidor — ver nota abajo)
   async sendAutomaticReminders(): Promise<void> {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    // "Mañana" depende del huso de cada profesional, no del servidor (UTC en Render).
+    // Solo hay dos husos soportados (+54 AR, +58 VE) — se buscan candidatos para ambos
+    // (suelen coincidir) y se filtra con precisión por profesional antes de enviar.
+    // Mismo motivo que el fix de getTomorrowAppointments() y de availability.service.ts.
+    const candidateDates = Array.from(new Set(
+      SUPPORTED_TZ_OFFSETS.map((offset) => addDays(localDateString(offset), 1)),
+    ));
 
     const appts = await this.repo.find({
-      where: [
-        { date: tomorrowStr, status: AppointmentStatus.CONFIRMED,   reminderSent: false },
-        { date: tomorrowStr, status: AppointmentStatus.RECONFIRMED, reminderSent: false },
-      ],
-      relations: ['client', 'service'],
+      where: candidateDates.flatMap((date) => [
+        { date, status: AppointmentStatus.CONFIRMED,   reminderSent: false },
+        { date, status: AppointmentStatus.RECONFIRMED, reminderSent: false },
+      ]),
+      relations: ['client', 'service', 'professional'],
     });
 
     let sent = 0;
     for (const appt of appts) {
+      const offset = resolveTzOffsetHours(appt.professional?.phone);
+      const tomorrowForProfessional = addDays(localDateString(offset), 1);
+      if (appt.date !== tomorrowForProfessional) continue; // no es "mañana" para el huso de este profesional
+
       try {
-        const professional = await this.professionalsService.findOne(appt.professionalId);
-        await this.notificationsService.sendAutomaticReminder(appt, appt.client, professional, appt.service);
+        await this.notificationsService.sendAutomaticReminder(appt, appt.client, appt.professional, appt.service);
         await this.repo.update(appt.id, { reminderSent: true });
         sent++;
       } catch (err) {
         console.error(`[Cron reminder] Error en cita ${appt.id}: ${err.message}`);
       }
     }
-    if (sent > 0) console.log(`[Cron] ${sent} recordatorios automáticos enviados para ${tomorrowStr}`);
+    if (sent > 0) console.log(`[Cron] ${sent} recordatorios automáticos enviados`);
   }
 
   // ── Helpers privados ──────────────────────────────────────────────────────

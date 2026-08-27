@@ -13,6 +13,9 @@ export interface VerticalConfig {
   appointmentLabelPlural: string;  // "Citas" | "Turnos" | "Sesiones"
   emailGreeting:          string;  // "Estimado/a" | "Hola"
   emailSignoff:           string;  // "Saludos cordiales" | "Hasta pronto"
+  // 'initials' → reseñas públicas muestran solo iniciales ("M. G."), no el nombre completo.
+  // Solo HEALTH: una reseña pública nombrando a un paciente es más sensible que en otros rubros.
+  reviewerNameDisplay:    'initials' | 'full';
 }
 
 export const VERTICAL_CONFIG: Record<ProfessionalType, VerticalConfig> = {
@@ -23,6 +26,7 @@ export const VERTICAL_CONFIG: Record<ProfessionalType, VerticalConfig> = {
     appointmentLabelPlural: 'Citas',
     emailGreeting:          'Estimado/a',
     emailSignoff:           'Saludos cordiales',
+    reviewerNameDisplay:    'initials',
   },
   [ProfessionalType.BEAUTY]: {
     clientLabel:            'Cliente',
@@ -31,6 +35,7 @@ export const VERTICAL_CONFIG: Record<ProfessionalType, VerticalConfig> = {
     appointmentLabelPlural: 'Turnos',
     emailGreeting:          'Hola',
     emailSignoff:           'Hasta pronto',
+    reviewerNameDisplay:    'full',
   },
   [ProfessionalType.WELLNESS]: {
     clientLabel:            'Cliente',
@@ -39,6 +44,7 @@ export const VERTICAL_CONFIG: Record<ProfessionalType, VerticalConfig> = {
     appointmentLabelPlural: 'Sesiones',
     emailGreeting:          'Hola',
     emailSignoff:           'Hasta pronto',
+    reviewerNameDisplay:    'full',
   },
   [ProfessionalType.OTHER]: {
     clientLabel:            'Cliente',
@@ -47,6 +53,7 @@ export const VERTICAL_CONFIG: Record<ProfessionalType, VerticalConfig> = {
     appointmentLabelPlural: 'Turnos',
     emailGreeting:          'Hola',
     emailSignoff:           'Hasta pronto',
+    reviewerNameDisplay:    'full',
   },
 };
 

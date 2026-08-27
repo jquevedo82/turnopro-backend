@@ -131,6 +131,7 @@ export class AuthService {
         name:             professional.name,
         slug:             professional.slug,
         professionalType: professional.professionalType,
+        country:          professional.country,
       },
     };
   }
@@ -166,8 +167,8 @@ export class AuthService {
    * Funciona tanto para profesionales como para secretarias.
    */
   async resetPassword(token: string, newPassword: string): Promise<void> {
-    if (!newPassword || newPassword.length < 6)
-      throw new BadRequestException('La contraseña debe tener al menos 6 caracteres');
+    if (!newPassword || newPassword.length < 10)
+      throw new BadRequestException('La contraseña debe tener al menos 10 caracteres');
 
     // Intentar con profesional primero
     const professional = await this.professionalRepo.findOne({

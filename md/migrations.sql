@@ -141,3 +141,108 @@ SET @sql = IF(
      ON `schedule_exceptions` (`professional_id`, `date`)'
 );
 PREPARE _stmt FROM @sql; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;
+
+
+-- -----------------------------------------------------------------------------
+-- [2026-07-20] Aviso de vencimiento de suscripción
+-- Motivo: ProfessionalsService.sendSubscriptionExpiryWarnings() (cron diario) necesita
+-- registrar si ya avisó en el ciclo actual, para no reenviar el email todos los días.
+-- -----------------------------------------------------------------------------
+SET @sql = IF(
+  EXISTS(
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME   = 'professionals'
+      AND COLUMN_NAME  = 'subscription_warning_sent_at'
+  ),
+  'SELECT ''[skip] subscription_warning_sent_at ya existe''',
+  'ALTER TABLE `professionals`
+     ADD COLUMN `subscription_warning_sent_at` DATETIME NULL DEFAULT NULL
+     AFTER `subscription_end`'
+);
+PREPARE _stmt FROM @sql; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;
+
+
+-- -----------------------------------------------------------------------------
+-- [2026-08-26] Tabla `reviews` — módulo de reseñas
+-- Motivo: reseña de un paciente/cliente sobre el profesional, atada a una cita
+-- completada. Primera vez que este archivo necesita una tabla nueva en vez de una
+-- columna — CREATE TABLE IF NOT EXISTS es sintaxis estándar de MySQL (a diferencia
+-- de ADD COLUMN IF NOT EXISTS, que es de MariaDB, ver nota del header), así que no
+-- hace falta el dance de SET @sql/PREPARE/EXECUTE que usan los bloques de columna.
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `reviews` (
+  `id`              INT AUTO_INCREMENT PRIMARY KEY,
+  `professional_id` INT NOT NULL,
+  `appointment_id`  INT NOT NULL,
+  `token`           VARCHAR(64) NOT NULL,
+  `reviewer_name`   VARCHAR(150) NOT NULL,
+  `rating`          TINYINT UNSIGNED NULL,
+  `comment`         VARCHAR(1000) NULL,
+  `status`          VARCHAR(20) NOT NULL DEFAULT 'invitado',
+  `created_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `submitted_at`    DATETIME NULL,
+  UNIQUE KEY `UQ_review_appointment` (`appointment_id`),
+  UNIQUE KEY `UQ_review_token` (`token`),
+  KEY `IDX_review_professional_status` (`professional_id`, `status`),
+  CONSTRAINT `FK_review_professional` FOREIGN KEY (`professional_id`) REFERENCES `professionals`(`id`),
+  CONSTRAINT `FK_review_appointment`  FOREIGN KEY (`appointment_id`)  REFERENCES `appointments`(`id`)
+) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+
+-- -----------------------------------------------------------------------------
+-- [2026-08-26] status/error en notifications_log
+-- Motivo: NotificationsService ya soportaba registrar fallos de envío (status='failed'
+-- + detalle del error), pero ningún catch la llamaba — un email que fallaba quedaba solo
+-- en el log de Render, invisible en la BD. Se agregó la llamada en cada catch; estas
+-- columnas ya existían en local (creadas por synchronize en algún momento previo a que
+-- existiera este archivo de migraciones) pero nunca quedaron documentadas acá, así que
+-- no hay garantía de que estén en Aiven. Idempotente como el resto — seguro de re-correr.
+-- -----------------------------------------------------------------------------
+SET @sql = IF(
+  EXISTS(
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME   = 'notifications_log'
+      AND COLUMN_NAME  = 'status'
+  ),
+  'SELECT ''[skip] notifications_log.status ya existe''',
+  'ALTER TABLE `notifications_log`
+     ADD COLUMN `status` VARCHAR(20) NOT NULL DEFAULT ''sent''
+     AFTER `event`'
+);
+PREPARE _stmt FROM @sql; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;
+
+SET @sql = IF(
+  EXISTS(
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME   = 'notifications_log'
+      AND COLUMN_NAME  = 'error'
+  ),
+  'SELECT ''[skip] notifications_log.error ya existe''',
+  'ALTER TABLE `notifications_log`
+     ADD COLUMN `error` TEXT NULL
+     AFTER `status`'
+);
+PREPARE _stmt FROM @sql; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;
+
+
+-- -----------------------------------------------------------------------------
+-- [2026-07-20] País del profesional (soporte Argentina/Colombia/Venezuela)
+-- Motivo: default del selector de país en el teléfono del PACIENTE al reservar
+-- (antes siempre arrancaba en +54 sin importar dónde está el profesional).
+-- -----------------------------------------------------------------------------
+SET @sql = IF(
+  EXISTS(
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME   = 'professionals'
+      AND COLUMN_NAME  = 'country'
+  ),
+  'SELECT ''[skip] country ya existe''',
+  'ALTER TABLE `professionals`
+     ADD COLUMN `country` VARCHAR(5) NULL DEFAULT NULL
+     AFTER `whatsapp_phone`'
+);
+PREPARE _stmt FROM @sql; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;

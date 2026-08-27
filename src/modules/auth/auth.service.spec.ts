@@ -68,3 +68,44 @@ describe('AuthService — login superadmin', () => {
     expect(result.user.role).toBe('superadmin');
   });
 });
+
+describe('AuthService — login profesional', () => {
+  beforeEach(() => {
+    mockSecretariesService.validateSecretary.mockResolvedValue(null);
+  });
+
+  it('incluye el país configurado en la respuesta de login', async () => {
+    const password = 'password-correcto';
+    mockRepo.findOne.mockResolvedValue({
+      id: 5,
+      email: 'doc@turnopro.com',
+      password: await bcrypt.hash(password, 10),
+      isActive: true,
+      name: 'Dra. García',
+      slug: 'dra-garcia',
+      professionalType: 'health',
+      country: '+58',
+    });
+
+    const service = await buildService();
+    const result  = await service.login({ email: 'doc@turnopro.com', password });
+
+    expect(result.user.country).toBe('+58');
+  });
+});
+
+describe('AuthService — resetPassword', () => {
+  it('rechaza contraseña de menos de 10 caracteres', async () => {
+    const service = await buildService();
+    await expect(service.resetPassword('token', 'corta123')).rejects.toThrow(
+      'La contraseña debe tener al menos 10 caracteres',
+    );
+  });
+
+  it('rechaza contraseña vacía', async () => {
+    const service = await buildService();
+    await expect(service.resetPassword('token', '')).rejects.toThrow(
+      'La contraseña debe tener al menos 10 caracteres',
+    );
+  });
+});
