@@ -14,7 +14,7 @@ type PrivateService = {
   calculateDynamicSlots: (
     start: string, end: string,
     duration: number, buffer: number,
-    occupied: { start: number; end: number }[]
+    occupied: { start: number; end: number; buffer: number }[]
   ) => string[];
 };
 
@@ -47,7 +47,7 @@ describe('AvailabilityService — timezone fix', () => {
     });
 
     it('salta la cita que choca y continúa después', () => {
-      const occupied = [{ start: 570, end: 630 }]; // 09:30 - 10:30
+      const occupied = [{ start: 570, end: 630, buffer: 0 }]; // 09:30 - 10:30
       const slots = svc.calculateDynamicSlots('09:00', '12:00', 60, 0, occupied);
       // 09:00 choca con 09:30-10:30 → salta a 10:30 → slot 10:30 libre
       expect(slots).toContain('10:30');
@@ -55,12 +55,28 @@ describe('AvailabilityService — timezone fix', () => {
     });
 
     it('respeta el buffer entre citas', () => {
-      const occupied = [{ start: 600, end: 660 }]; // 10:00 - 11:00
-      // Con buffer=15: slot 09:00 terminaría a 10:15 (09:00 + 60 + 15) → choca con 10:00
+      const occupied = [{ start: 600, end: 660, buffer: 15 }]; // 10:00 - 11:00, buffer propio 15
+      // Con buffer=15 (del servicio candidato): slot 09:00 terminaría a 10:15 (09:00 + 60 + 15) → choca con 10:00
       const slots = svc.calculateDynamicSlots('09:00', '13:00', 60, 15, occupied);
       expect(slots).not.toContain('09:00');
       // Después del buffer: salta a 11:00 + 15 = 11:15
       expect(slots).toContain('11:15');
+    });
+
+    it('usa el buffer PROPIO de la cita que ocupa el horario, no el del servicio que se está consultando', () => {
+      // "Corte" (buffer propio 5) ocupa 10:00-10:30. Alguien consulta disponibilidad
+      // para "Tratamiento capilar" (buffer 20) — el margen después del Corte lo define
+      // el Corte (5 min), no el Tratamiento. Antes del fix, saltaba a 10:30+20=10:50.
+      const occupied = [{ start: 600, end: 630, buffer: 5 }]; // 10:00-10:30, buffer propio 5
+      const slots = svc.calculateDynamicSlots('09:00', '12:00', 30, 20, occupied);
+      expect(slots).toContain('10:35'); // 10:30 + 5 (buffer del Corte), no 10:50
+      expect(slots).not.toContain('10:50');
+    });
+
+    it('no dejar ningún margen si la cita que ocupa el horario tiene buffer propio 0, aunque el servicio candidato tenga buffer alto', () => {
+      const occupied = [{ start: 600, end: 630, buffer: 0 }]; // 10:00-10:30, sin buffer propio
+      const slots = svc.calculateDynamicSlots('09:00', '12:00', 30, 20, occupied);
+      expect(slots).toContain('10:30'); // arranca justo al terminar, sin esperar el buffer del candidato
     });
   });
 
