@@ -125,9 +125,17 @@ export class AvailabilityService {
     }
 
     // ── Obtener citas ya ocupadas para ese día ────────────────────────────
-    // Incluye startTime y endTime para el algoritmo de salto
+    // Incluye ARRIVED e IN_PROGRESS: un paciente que ya llegó o está siendo
+    // atendido sigue ocupando el horario tanto como uno RECONFIRMED — antes de
+    // este fix el algoritmo dejaba de bloquear ese horario apenas se lo marcaba
+    // ARRIVED, permitiendo que otra persona reservara encima mientras esperaba
+    // o lo estaban atendiendo.
+    // Trae también el servicio de cada cita (para su propio bufferMinutes) —
+    // el margen que hay que dejar libre DESPUÉS de una cita ya existente es el
+    // que configuró ESE servicio, no el del servicio que se está consultando ahora.
     const occupiedAppointments = await this.appointmentRepo
       .createQueryBuilder('a')
+      .leftJoinAndSelect('a.service', 's')
       .where('a.professionalId = :professionalId', { professionalId })
       .andWhere('a.date = :date', { date })
       .andWhere('a.status IN (:...statuses)', {
@@ -135,16 +143,20 @@ export class AvailabilityService {
           AppointmentStatus.PENDING,
           AppointmentStatus.CONFIRMED,
           AppointmentStatus.RECONFIRMED,
+          AppointmentStatus.ARRIVED,
+          AppointmentStatus.IN_PROGRESS,
           AppointmentStatus.COMPLETED,
         ],
       })
-      .select(['a.startTime', 'a.endTime'])
+      .select(['a.startTime', 'a.endTime', 's.bufferMinutes'])
       .getMany();
 
-    // Normalizar a minutos para comparación eficiente
+    // Normalizar a minutos para comparación eficiente. buffer: el de SU propio
+    // servicio, con el mismo fallback al perfil que usa el servicio candidato arriba.
     const occupied = occupiedAppointments.map((a) => ({
-      start: this.timeStringToMinutes(a.startTime.substring(0, 5)),
-      end:   this.timeStringToMinutes(a.endTime.substring(0, 5)),
+      start:  this.timeStringToMinutes(a.startTime.substring(0, 5)),
+      end:    this.timeStringToMinutes(a.endTime.substring(0, 5)),
+      buffer: a.service?.bufferMinutes ?? professional.bufferMinutes,
     }));
 
     // ── Calcular slots con algoritmo dinámico ─────────────────────────────
@@ -187,7 +199,7 @@ export class AvailabilityService {
     endTime: string,
     durationMin: number,
     bufferMin: number,
-    occupied: { start: number; end: number }[],
+    occupied: { start: number; end: number; buffer: number }[],
   ): string[] {
     const slots: string[]   = [];
     const endMinutes        = this.timeStringToMinutes(endTime);
@@ -196,9 +208,11 @@ export class AvailabilityService {
     while (cursor + durationMin <= endMinutes) {
       const slotEnd = cursor + durationMin;
 
-      // Buscar si alguna cita choca con el rango [cursor, slotEnd + buffer]
+      // Choca si el rango [cursor, slotEnd + MI buffer] se solapa con el rango
+      // que ocupa la cita existente, extendido por SU PROPIO buffer de cierre
+      // (appt.buffer) — no el buffer del servicio que estoy por reservar.
       const clash = occupied.find(
-        (appt) => appt.start < slotEnd + bufferMin && appt.end > cursor,
+        (appt) => appt.start < slotEnd + bufferMin && appt.end + appt.buffer > cursor,
       );
 
       if (!clash) {
@@ -206,8 +220,8 @@ export class AvailabilityService {
         slots.push(this.minutesToTimeString(cursor));
         cursor += durationMin + bufferMin;
       } else {
-        // Slot ocupado — saltar al final de la cita que choca + buffer
-        cursor = clash.end + bufferMin;
+        // Slot ocupado — saltar al final de la cita que choca + SU propio buffer
+        cursor = clash.end + clash.buffer;
       }
     }
 
