@@ -16,6 +16,7 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService }       from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -37,6 +38,8 @@ const SUPERADMIN = {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectRepository(Professional)
     private readonly professionalRepo: Repository<Professional>,
@@ -155,11 +158,15 @@ export class AuthService {
       resetTokenExpiry: expiry,
     });
 
-    await this.notifications.sendPasswordReset({
+    // Sin esperar el email — el token ya quedó guardado, y la respuesta de este
+    // endpoint es siempre la misma genérica ("si el email existe, lo enviamos")
+    // para no revelar si la cuenta existe. Esperar la llamada a Brevo acá no
+    // cambia nada de lo que ve el usuario, solo suma latencia.
+    this.notifications.sendPasswordReset({
       toEmail: professional.email,
       name:    professional.name,
       token,
-    });
+    }).catch((err) => this.logger.error(`Error enviando email de recuperación: ${err.message}`));
   }
 
   /**
