@@ -18,7 +18,7 @@ function makeQueryBuilder(existing: { startTime: string; endTime: string }[]) {
 
 function makeManager(existing: { startTime: string; endTime: string }[], lockAcquired = true) {
   return {
-    query: jest.fn().mockResolvedValue([{ lock: lockAcquired ? 1 : 0 }]),
+    query: jest.fn().mockResolvedValue([{ lockAcquired: lockAcquired ? 1 : 0 }]),
     createQueryBuilder: jest.fn().mockReturnValue(makeQueryBuilder(existing)),
     create: jest.fn((_entity, data) => data),
     save:   jest.fn((_entity, data) => Promise.resolve({ id: 99, ...data })),
