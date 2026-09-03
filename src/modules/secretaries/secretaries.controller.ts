@@ -19,7 +19,7 @@
  */
 import {
   Controller, Get, Post, Patch,
-  Body, Param, ParseIntPipe, UseGuards,
+  Body, Param, ParseIntPipe, UseGuards, Logger,
 } from '@nestjs/common';
 import { SecretariesService }    from './secretaries.service';
 import { NotificationsService }  from '../notifications/notifications.service';
@@ -55,6 +55,8 @@ export class SecretaryMeController {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.SUPERADMIN)
 export class SecretariesController {
+  private readonly logger = new Logger(SecretariesController.name);
+
   constructor(
     private readonly svc:           SecretariesService,
     private readonly notifications: NotificationsService,
@@ -110,12 +112,14 @@ export class SecretariesController {
     const { secretary, emailChanged } = await this.svc.update(id, dto);
 
     if (emailChanged) {
-      await this.notifications.sendEmailChanged({
+      // Sin esperar el email — el cambio ya se guardó, mismo criterio que en
+      // ProfessionalsController.update().
+      this.notifications.sendEmailChanged({
         toEmail:  secretary.email,
         name:     secretary.name,
         newEmail: secretary.email,
         role:     'secretaria',
-      });
+      }).catch((err) => this.logger.error(`Error avisando cambio de email: ${err.message}`));
     }
 
     return secretary;

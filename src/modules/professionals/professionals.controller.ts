@@ -16,7 +16,7 @@
 import {
   Controller, Get, Post, Patch, Body, Param, Query,
   UseGuards, ParseIntPipe, UseInterceptors,
-  UploadedFile, BadRequestException, ForbiddenException,
+  UploadedFile, BadRequestException, ForbiddenException, Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ProfessionalsService }   from './professionals.service';
@@ -37,6 +37,8 @@ import { SecretariesService } from '../secretaries/secretaries.service';
 @Controller('professionals')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ProfessionalsController {
+  private readonly logger = new Logger(ProfessionalsController.name);
+
   constructor(
     private readonly svc: ProfessionalsService,
     private readonly notificationsService: NotificationsService,
@@ -166,12 +168,14 @@ export class ProfessionalsController {
     const emailChanged = dto.email && dto.email !== before.email;
 
     if (emailChanged) {
-      await this.notificationsService.sendEmailChanged({
+      // Sin esperar el email — el cambio ya se guardó, el superadmin no necesita
+      // esperar un aviso de cortesía para saber que la edición se aplicó.
+      this.notificationsService.sendEmailChanged({
         toEmail:  updated.email,
         name:     updated.name,
         newEmail: updated.email,
         role:     'profesional',
-      });
+      }).catch((err) => this.logger.error(`Error avisando cambio de email: ${err.message}`));
     }
 
     return updated;

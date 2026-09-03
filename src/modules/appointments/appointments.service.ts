@@ -190,11 +190,15 @@ export class AppointmentsService {
       ? AppointmentStatus.RECONFIRMED
       : AppointmentStatus.CONFIRMED;
     await this.repo.update(id, { status: newStatus });
-    // Notificar al paciente que su cita fue confirmada por el médico
+    // Notificar al paciente que su cita fue confirmada por el médico — sin esperar
+    // el email antes de responder (mismo fix que create(), 2026-09-03): el estado
+    // ya cambió, el profesional no debería esperar una llamada HTTP a Brevo para
+    // saber que su acción se aplicó.
     const confirmed = await this.repo.findOne({ where: { id }, relations: ['client', 'service'] });
     if (confirmed) {
       const prof = await this.professionalsService.findOne(professionalId);
-      await this.notificationsService.notifyClientAppointmentConfirmed(confirmed, confirmed.client, prof, confirmed.service);
+      this.notificationsService.notifyClientAppointmentConfirmed(confirmed, confirmed.client, prof, confirmed.service)
+        .catch((err) => this.logger.error(`Error notificando confirmación al cliente: ${err.message}`));
     }
     return this.findById(id);
   }
@@ -227,10 +231,11 @@ export class AppointmentsService {
     }
 
     await this.repo.update(id, { status: AppointmentStatus.CANCELLED, cancelledBy });
-    // Notificar al paciente que la cita fue cancelada
+    // Notificar sin esperar el email — ver nota en confirm()
     const cancelled = await this.repo.findOne({ where: { id }, relations: ['client', 'service', 'professional'] });
     if (cancelled) {
-      await this.notificationsService.notifyClientCancellation(cancelled, cancelled.client, cancelled.professional, cancelledBy);
+      this.notificationsService.notifyClientCancellation(cancelled, cancelled.client, cancelled.professional, cancelledBy)
+        .catch((err) => this.logger.error(`Error notificando cancelación: ${err.message}`));
     }
     return this.findById(id);
   }
@@ -250,9 +255,13 @@ export class AppointmentsService {
       reconfirmedBy: by,
     });
     const updated = await this.repo.findOne({ where: { token }, relations: ['client', 'service', 'professional'] }) as Appointment;
-    // Notificar al médico que el paciente confirmó asistencia
+    // Notificar sin esperar el email — ver nota en confirm(). Acá es el caso que
+    // reportó el usuario: el cliente reconfirmando desde el link de su email
+    // esperaba a que le llegara el aviso por email AL PROFESIONAL antes de ver
+    // "cita confirmada" en su propia pantalla.
     if (updated && by === 'client') {
-      await this.notificationsService.notifyProfessionalClientReconfirmed(updated, updated.client, updated.professional, updated.service);
+      this.notificationsService.notifyProfessionalClientReconfirmed(updated, updated.client, updated.professional, updated.service)
+        .catch((err) => this.logger.error(`Error notificando reconfirmación al profesional: ${err.message}`));
     }
     return updated;
   }
@@ -383,12 +392,15 @@ export class AppointmentsService {
     }
     await this.repo.update(id, { status: AppointmentStatus.COMPLETED });
     await this.professionalsService.bumpQueueUpdatedAt(professionalId);
-    // Enviar email de gracias + rebooking al paciente, con pedido de reseña
+    // Enviar email de gracias + rebooking al paciente, con pedido de reseña —
+    // la invitación a reseña sí se espera (es solo un INSERT rápido), el email
+    // no (ver nota en confirm()).
     const completed = await this.repo.findOne({ where: { id }, relations: ['client'] });
     if (completed) {
       const prof   = await this.professionalsService.findOne(professionalId);
       const review = await this.reviewsService.createInviteForAppointment(completed, completed.client);
-      await this.notificationsService.notifyClientAppointmentCompleted(completed, completed.client, prof, review.token);
+      this.notificationsService.notifyClientAppointmentCompleted(completed, completed.client, prof, review.token)
+        .catch((err) => this.logger.error(`Error notificando cita completada: ${err.message}`));
     }
     return this.findById(id);
   }
