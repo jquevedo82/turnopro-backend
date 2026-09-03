@@ -25,6 +25,7 @@ import {
   UseGuards, ParseIntPipe, ForbiddenException,
 } from '@nestjs/common';
 import { AppointmentsService }  from './appointments.service';
+import { AppointmentStatus }    from './appointment-status.enum';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { JwtAuthGuard }         from '../../common/guards/jwt-auth.guard';
 import { RolesGuard }           from '../../common/guards/roles.guard';
@@ -114,15 +115,23 @@ export class AppointmentsController {
     return this.svc.getByProfessionalAndDate(professionalId, today);
   }
 
+  /**
+   * GET /appointments/upcoming?status=confirmed
+   * Citas desde hoy en adelante, de cualquier fecha — sin status, trae todo lo
+   * que sigue "abierto" (pending/confirmed/reconfirmed). Con status, filtra a
+   * ese estado puntual (ej. "quiero ver todas mis confirmadas sin recorrer
+   * cada día del calendario").
+   */
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.PROFESSIONAL, Role.SECRETARY)
-  @Get('pending')
-  async getPending(
+  @Get('upcoming')
+  async getUpcoming(
     @CurrentUser() user: JwtPayload,
+    @Query('status') status?: AppointmentStatus,
     @Query('professionalId') profId?: string,
   ) {
     const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
-    return this.svc.getPendingAppointments(professionalId);
+    return this.svc.getUpcomingAppointments(professionalId, status);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
