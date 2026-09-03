@@ -119,8 +119,13 @@ export class AppointmentsService {
     ];
 
     return this.repo.manager.transaction(async (manager) => {
-      const [{ lock }] = await manager.query('SELECT GET_LOCK(?, 10) AS lock', [lockKey]);
-      if (Number(lock) !== 1) {
+      // OJO: 'lock' como alias sin backticks rompe en MySQL real ("error de sintaxis
+      // ... near 'lock'") — bug encontrado en producción el 2026-09-03, cada reserva
+      // fallaba con 500 porque esta query nunca llegaba a ejecutarse. Los tests
+      // mockean manager.query() por completo, así que nunca lo hubieran detectado —
+      // se necesita correr contra un MySQL real para atrapar un error de sintaxis SQL.
+      const [{ lockAcquired }] = await manager.query('SELECT GET_LOCK(?, 10) AS lockAcquired', [lockKey]);
+      if (Number(lockAcquired) !== 1) {
         throw new BadRequestException('El sistema está ocupado procesando otra reserva para este horario, intentá de nuevo en unos segundos');
       }
       try {
