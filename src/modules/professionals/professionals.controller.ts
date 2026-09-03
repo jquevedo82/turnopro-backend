@@ -56,8 +56,13 @@ export class ProfessionalsController {
   async shareLink(
     @CurrentUser() user: JwtPayload,
     @Body('email') email: string,
-    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
+    // string crudo, NO ParseIntPipe — mismo bug que appointments.controller.ts:
+    // el ValidationPipe global coacciona un query ?: number ausente a NaN antes
+    // de que ParseIntPipe({optional:true}) lo vea, y NaN no es "nil" -> 400 siempre
+    // para el profesional (que nunca manda professionalId).
+    @Query('professionalId') rawProfId?: string,
   ) {
+    const profId = rawProfId ? Number(rawProfId) : undefined;
     let professionalId: number;
     if ((user as any).role === 'secretary') {
       if (!profId) throw new ForbiddenException('La secretaria debe indicar professionalId');

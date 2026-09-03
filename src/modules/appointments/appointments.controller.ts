@@ -6,6 +6,19 @@
  *
  * NUEVO: endpoints de today/tomorrow/confirm/etc. aceptan Role.SECRETARY.
  * La secretaria debe pasar ?professionalId=X en cada request.
+ *
+ * IMPORTANTE — por qué professionalId se recibe como string, no con ParseIntPipe:
+ * bug real de producción (2026-09-03) encontrado al investigar por qué "Hoy" y
+ * "Pendientes" no mostraban citas del profesional. El ValidationPipe global
+ * (main.ts, transform:true) coacciona CUALQUIER query param tipado ?: number
+ * con `+value` ANTES de que corra un pipe de parámetro — `+undefined` da `NaN`,
+ * no `undefined`. Con eso, `new ParseIntPipe({ optional: true })` nunca ve el
+ * valor realmente ausente que necesita para no tirar error: recibe NaN, que no
+ * es "nil" pero tampoco es numérico, y siempre lanza 400. Esto rompía TODOS los
+ * endpoints de este archivo para el profesional (no para la secretaria, que
+ * siempre manda un professionalId real). Fix: recibir el valor crudo como
+ * string (sin pipe, así el ValidationPipe global no lo toca — su coerción solo
+ * aplica a metatype Number) y convertirlo acá adentro, una sola vez.
  */
 import {
   Controller, Get, Post, Body, Param, Query,
@@ -27,20 +40,24 @@ import { SecretariesService }   from '../secretaries/secretaries.service';
  *   - professional → lo saca del JWT (comportamiento original)
  *   - secretary    → lo saca del query param y valida que tenga acceso
  *
+ * queryProfId llega como string CRUDO (ver nota arriba del archivo) — se
+ * convierte a number acá adentro, en un solo lugar.
+ *
  * @throws ForbiddenException si la secretaria no pasa professionalId
  */
-async function resolveProffesionalId(
+export async function resolveProffesionalId(
   user:               JwtPayload,
   secretariesService: SecretariesService,
-  queryProfId?:       number,
+  queryProfId?:       string,
 ): Promise<number> {
+  const profId = queryProfId ? Number(queryProfId) : undefined;
   if (user.role === Role.SECRETARY) {
-    if (!queryProfId) {
+    if (!profId) {
       throw new ForbiddenException('La secretaria debe indicar professionalId como query param');
     }
     // Valida que la secretaria tenga acceso a ese profesional
-    await secretariesService.assertAccess(getSecretaryId(user), queryProfId);
-    return queryProfId;
+    await secretariesService.assertAccess(getSecretaryId(user), profId);
+    return profId;
   }
   // Profesional: comportamiento original
   return getProfessionalId(user);
@@ -90,7 +107,7 @@ export class AppointmentsController {
   async getToday(
     @CurrentUser() user:        JwtPayload,
     @Query('date') date?:       string,
-    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
+    @Query('professionalId') profId?: string,
   ) {
     const today        = date ?? new Date().toISOString().split('T')[0];
     const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
@@ -102,7 +119,7 @@ export class AppointmentsController {
   @Get('pending')
   async getPending(
     @CurrentUser() user: JwtPayload,
-    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
+    @Query('professionalId') profId?: string,
   ) {
     const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
     return this.svc.getPendingAppointments(professionalId);
@@ -113,7 +130,7 @@ export class AppointmentsController {
   @Get('tomorrow')
   async getTomorrow(
     @CurrentUser() user: JwtPayload,
-    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
+    @Query('professionalId') profId?: string,
   ) {
     const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
     return this.svc.getTomorrowAppointments(professionalId);
@@ -125,7 +142,7 @@ export class AppointmentsController {
   async confirm(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user:           JwtPayload,
-    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
+    @Query('professionalId') profId?: string,
   ) {
     const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
     return this.svc.confirm(id, professionalId);
@@ -137,7 +154,7 @@ export class AppointmentsController {
   async complete(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user:           JwtPayload,
-    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
+    @Query('professionalId') profId?: string,
   ) {
     const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
     return this.svc.complete(id, professionalId);
@@ -149,7 +166,7 @@ export class AppointmentsController {
   async markReminder(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user:           JwtPayload,
-    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
+    @Query('professionalId') profId?: string,
   ) {
     const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
     return this.svc.markReminderSent(id, professionalId);
@@ -161,7 +178,7 @@ export class AppointmentsController {
   async resendEmail(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user:           JwtPayload,
-    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
+    @Query('professionalId') profId?: string,
   ) {
     const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
     return this.svc.resendEmailToClient(id, professionalId);
@@ -173,7 +190,7 @@ export class AppointmentsController {
   async cancelByProfessional(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user:           JwtPayload,
-    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
+    @Query('professionalId') profId?: string,
   ) {
     const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
     return this.svc.cancel(id, 'professional', professionalId);
@@ -187,7 +204,7 @@ export class AppointmentsController {
   async markArrived(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user:           JwtPayload,
-    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
+    @Query('professionalId') profId?: string,
   ) {
     const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
     return this.svc.markArrived(id, professionalId);
@@ -199,7 +216,7 @@ export class AppointmentsController {
   async startConsultation(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user:           JwtPayload,
-    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
+    @Query('professionalId') profId?: string,
   ) {
     const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
     return this.svc.startConsultation(id, professionalId);
@@ -217,7 +234,7 @@ export class AppointmentsController {
   @Get('stats')
   async getStats(
     @CurrentUser() user: JwtPayload,
-    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
+    @Query('professionalId') profId?: string,
   ) {
     const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
     return this.svc.getMonthlyStats(professionalId);
@@ -229,7 +246,7 @@ export class AppointmentsController {
   async getQueue(
     @CurrentUser() user:        JwtPayload,
     @Query('date') date?:       string,
-    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
+    @Query('professionalId') profId?: string,
   ) {
     const today          = date ?? new Date().toISOString().split('T')[0];
     const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
