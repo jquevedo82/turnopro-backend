@@ -132,6 +132,7 @@ export class AuthService {
         slug:             professional.slug,
         professionalType: professional.professionalType,
         country:          professional.country,
+        autoConfirm:      professional.autoConfirm, // decide si el panel muestra la pestaña "Pendientes"
       },
     };
   }

@@ -99,6 +99,17 @@ export class AppointmentsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.PROFESSIONAL, Role.SECRETARY)
+  @Get('pending')
+  async getPending(
+    @CurrentUser() user: JwtPayload,
+    @Query('professionalId', new ParseIntPipe({ optional: true })) profId?: number,
+  ) {
+    const professionalId = await resolveProffesionalId(user, this.secretariesSvc, profId);
+    return this.svc.getPendingAppointments(professionalId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROFESSIONAL, Role.SECRETARY)
   @Get('tomorrow')
   async getTomorrow(
     @CurrentUser() user: JwtPayload,
