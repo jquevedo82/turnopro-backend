@@ -85,12 +85,14 @@ describe('AuthService — login profesional', () => {
       slug: 'dra-garcia',
       professionalType: 'health',
       country: '+58',
+      autoConfirm: false,
     });
 
     const service = await buildService();
     const result  = await service.login({ email: 'doc@turnopro.com', password });
 
     expect(result.user.country).toBe('+58');
+    expect(result.user.autoConfirm).toBe(false); // el frontend decide con esto si muestra "Pendientes"
   });
 });
 

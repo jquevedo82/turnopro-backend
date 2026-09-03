@@ -274,6 +274,18 @@ export class AppointmentsService {
     });
   }
 
+  // Citas PENDING de CUALQUIER fecha, no solo el día seleccionado — sin esto, un
+  // profesional con autoConfirm=false tiene que ir pinchando fecha por fecha en el
+  // calendario para encontrar qué le está esperando una decisión (reportado por el
+  // usuario 2026-09-03: una cita pendiente de un día futuro no aparecía en ningún lado).
+  getPendingAppointments(professionalId: number): Promise<Appointment[]> {
+    return this.repo.find({
+      where: { professionalId, status: AppointmentStatus.PENDING },
+      relations: ['client', 'service'],
+      order: { date: 'ASC', startTime: 'ASC' },
+    });
+  }
+
   // "Mañana" se calcula en la fecha-calendario LOCAL del profesional (huso resuelto por
   // prefijo de teléfono +54/+58), no en la del servidor (Render corre en UTC) — mismo bug
   // que ya existía en availability.service.ts, ahora corregido acá también (2026-07-20).
