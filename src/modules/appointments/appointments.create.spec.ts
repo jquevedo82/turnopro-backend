@@ -103,6 +103,21 @@ describe('AppointmentsService.create() — race condition', () => {
     expect(manager.query).not.toHaveBeenCalled();
   });
 
+  it('responde apenas se guarda la cita, sin esperar a que salgan los emails (conexión lenta en Venezuela)', async () => {
+    const manager = makeManager([]);
+    let releaseEmail: () => void = () => {};
+    const emailPending = new Promise<void>((resolve) => { releaseEmail = resolve; });
+    const { svc, notificationsService } = makeService(manager);
+    // Simula un Brevo lento: la promesa de "enviar confirmación" no se resuelve todavía
+    notificationsService.sendAppointmentConfirmation.mockReturnValue(emailPending);
+
+    const result = await svc.create(baseDto as any);
+
+    // create() ya resolvió aunque el email siga colgado — no lo esperó
+    expect(result).toMatchObject({ professionalId: 10 });
+    releaseEmail(); // limpieza — evita dejar una promesa colgando entre tests
+  });
+
   it('rechaza con mensaje de reintento si no logra adquirir el lock (GET_LOCK timeout)', async () => {
     const manager = makeManager([], /* lockAcquired */ false);
     const { svc } = makeService(manager);
