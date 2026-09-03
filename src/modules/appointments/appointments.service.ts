@@ -3,7 +3,7 @@
  * findOne usa Promise<Appointment | null> correctamente con el operador de aserción.
  */
 import {
-  Injectable, BadRequestException, ForbiddenException, NotFoundException,
+  Injectable, BadRequestException, ForbiddenException, NotFoundException, Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
@@ -31,6 +31,8 @@ export interface MonthlyStats {
 
 @Injectable()
 export class AppointmentsService {
+  private readonly logger = new Logger(AppointmentsService.name);
+
   constructor(
     @InjectRepository(Appointment)
     private readonly repo: Repository<Appointment>,
@@ -85,9 +87,16 @@ export class AppointmentsService {
 
     const appointment = await this.createLocked(dto, client.id, endTime, status);
 
-    await this.notificationsService.sendAppointmentConfirmation(appointment, client, professional, service);
-    // Notificar al médico que llegó una nueva reserva
-    await this.notificationsService.notifyProfessionalNewAppointment(appointment, client, professional, service);
+    // Sin esperar los emails: la cita ya está guardada, el cliente no debería
+    // quedarse esperando 2 llamados HTTP a Brevo (pueden ser varios segundos en
+    // conexiones inestables, el caso real en Venezuela) para saber que su reserva
+    // se hizo. Ambos métodos ya atrapan sus propios errores y los registran en
+    // notifications_log — el .catch() es solo una red de seguridad extra.
+    this.notificationsService.sendAppointmentConfirmation(appointment, client, professional, service)
+      .catch((err) => this.logger.error(`Error enviando confirmación al cliente: ${err.message}`));
+    this.notificationsService.notifyProfessionalNewAppointment(appointment, client, professional, service)
+      .catch((err) => this.logger.error(`Error notificando al profesional: ${err.message}`));
+
     return appointment;
   }
 

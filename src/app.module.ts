@@ -47,6 +47,7 @@ import { SecretariesModule } from './modules/secretaries/secretaries.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { Review } from './modules/reviews/review.entity';
 import { ReviewsModule } from './modules/reviews/reviews.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -120,6 +121,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
     OrganizationsModule,
     SecretariesModule,
     ReviewsModule,
+    HealthModule,
   ],
   providers: [
     // Aplica ThrottlerGuard globalmente a todos los endpoints

@@ -265,6 +265,16 @@ export class AvailabilityService {
   /**
    * Retorna los días disponibles de un mes para mostrar en el calendario.
    * Un día está disponible si tiene al menos un slot libre.
+   *
+   * Antes de este fix llamaba a getAvailableSlots() una vez por día — hasta 31
+   * llamadas en secuencia, cada una con ~4-5 consultas a la base (profesional,
+   * excepción, horario semanal, servicio, citas ocupadas) = hasta ~150 round-trips
+   * a Aiven, uno atrás del otro. En una conexión inestable (el caso real: se usa
+   * desde Venezuela) cada round-trip suma latencia real, no solo cómputo — el
+   * usuario veía el calendario "colgado" varios segundos después de elegir un
+   * servicio. Acá se trae todo lo necesario del mes en un puñado de consultas
+   * (profesional, horario semanal, excepciones, citas ocupadas — todas una sola
+   * vez) y el resto se calcula en memoria, día por día, sin volver a tocar la base.
    */
   async getAvailableDaysInMonth(
     professionalId: number,
@@ -272,12 +282,106 @@ export class AvailabilityService {
     month: number,
     serviceId?: number,
   ): Promise<string[]> {
+    const professional = await this.professionalsService.findOne(professionalId);
+    const daysInMonth  = new Date(year, month, 0).getDate();
+    const pad2 = (n: number) => n.toString().padStart(2, '0');
+    const monthStart = `${year}-${pad2(month)}-01`;
+    const monthEnd   = `${year}-${pad2(month)}-${pad2(daysInMonth)}`;
+
+    const [weeklySchedule, exceptions] = await Promise.all([
+      this.scheduleService.getWeeklySchedule(professionalId),
+      this.scheduleService.getExceptions(professionalId), // ya filtra date >= CURDATE()
+    ]);
+    const exceptionsByDate = new Map(exceptions.map((e) => [e.date, e]));
+
+    let slotDuration  = professional.slotDurationMinutes;
+    let bufferMinutes = professional.bufferMinutes;
+    if (serviceId) {
+      try {
+        const service = await this.servicesService.findOne(serviceId);
+        if (service.durationMinutes) slotDuration = service.durationMinutes;
+        if (service.bufferMinutes !== null && service.bufferMinutes !== undefined) {
+          bufferMinutes = service.bufferMinutes;
+        }
+      } catch {
+        // Si el servicio no se encuentra, continúa con los valores del perfil
+      }
+    }
+
+    const occupiedAppointments = await this.appointmentRepo
+      .createQueryBuilder('a')
+      .leftJoinAndSelect('a.service', 's')
+      .where('a.professionalId = :professionalId', { professionalId })
+      .andWhere('a.date BETWEEN :start AND :end', { start: monthStart, end: monthEnd })
+      .andWhere('a.status IN (:...statuses)', {
+        statuses: [
+          AppointmentStatus.PENDING,
+          AppointmentStatus.CONFIRMED,
+          AppointmentStatus.RECONFIRMED,
+          AppointmentStatus.ARRIVED,
+          AppointmentStatus.IN_PROGRESS,
+          AppointmentStatus.COMPLETED,
+        ],
+      })
+      .select(['a.date', 'a.startTime', 'a.endTime', 's.bufferMinutes'])
+      .getMany();
+
+    const occupiedByDate = new Map<string, { start: number; end: number; buffer: number }[]>();
+    for (const a of occupiedAppointments) {
+      const list = occupiedByDate.get(a.date) ?? [];
+      list.push({
+        start:  this.timeStringToMinutes(a.startTime.substring(0, 5)),
+        end:    this.timeStringToMinutes(a.endTime.substring(0, 5)),
+        buffer: a.service?.bufferMinutes ?? professional.bufferMinutes,
+      });
+      occupiedByDate.set(a.date, list);
+    }
+
+    // Mismo criterio que getAvailableSlots() cuando se lo llama sin localNow
+    // (que es como este método siempre lo invoca): "hoy" para el límite de
+    // anticipación es la fecha local del profesional; "hoy" para el filtro de
+    // slots ya pasados del día actual sigue comparando contra la fecha UTC del
+    // servidor — se preserva tal cual para no cambiar de comportamiento acá.
+    const offset    = resolveTzOffsetHours(professional.phone);
+    const todayDate = new Date(localDateString(offset) + 'T12:00:00Z');
+    const todayUTC  = new Date().toISOString().split('T')[0];
+
     const availableDays: string[] = [];
-    const daysInMonth = new Date(year, month, 0).getDate();
 
     for (let day = 1; day <= daysInMonth; day++) {
-      const date  = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-      const slots = await this.getAvailableSlots(professionalId, date, serviceId);
+      const date = `${year}-${pad2(month)}-${pad2(day)}`;
+
+      const requestedDate = new Date(date + 'T12:00:00Z');
+      const diffDays = (requestedDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24);
+      if (diffDays * 24 < professional.minAdvanceHours) continue;
+      if (diffDays > professional.maxAdvanceDays) continue;
+
+      let scheduleForDate: { startTime: string; endTime: string } | null = null;
+      const exception = exceptionsByDate.get(date);
+      if (exception) {
+        if (!exception.isClosed) {
+          scheduleForDate = { startTime: exception.customStartTime, endTime: exception.customEndTime };
+        }
+      } else {
+        const dayOfWeek   = new Date(date + 'T12:00:00').getDay();
+        const daySchedule = weeklySchedule.find((s) => s.dayOfWeek === dayOfWeek && s.isActive);
+        if (daySchedule) scheduleForDate = { startTime: daySchedule.startTime, endTime: daySchedule.endTime };
+      }
+      if (!scheduleForDate) continue;
+
+      let slots = this.calculateDynamicSlots(
+        scheduleForDate.startTime,
+        scheduleForDate.endTime,
+        slotDuration,
+        bufferMinutes,
+        occupiedByDate.get(date) ?? [],
+      );
+
+      if (date === todayUTC) {
+        const minMinutes = professional.minAdvanceHours * 60;
+        slots = slots.filter((slot) => this.timeStringToMinutes(slot) >= minMinutes);
+      }
+
       if (slots.length > 0) availableDays.push(date);
     }
 
