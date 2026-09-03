@@ -6,7 +6,7 @@ import {
   Injectable, BadRequestException, ForbiddenException, NotFoundException, Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository, Between, MoreThanOrEqual, In } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { v4 as uuidv4 }    from 'uuid';
 import { Appointment }      from './appointment.entity';
@@ -283,13 +283,24 @@ export class AppointmentsService {
     });
   }
 
-  // Citas PENDING de CUALQUIER fecha, no solo el día seleccionado — sin esto, un
-  // profesional con autoConfirm=false tiene que ir pinchando fecha por fecha en el
-  // calendario para encontrar qué le está esperando una decisión (reportado por el
-  // usuario 2026-09-03: una cita pendiente de un día futuro no aparecía en ningún lado).
-  getPendingAppointments(professionalId: number): Promise<Appointment[]> {
+  // Citas de CUALQUIER fecha desde hoy en adelante, no solo el día seleccionado —
+  // sin esto, un profesional tiene que ir pinchando fecha por fecha en el calendario
+  // para encontrar qué le está esperando (reportado por el usuario 2026-09-03: una
+  // cita pendiente de un día futuro no aparecía en ningún lado). Generalizado más
+  // allá de solo PENDING (pedido explícito del usuario: "no sería bueno saber
+  // cuáles están confirmadas... para no tener que recorrer todos los días") —
+  // status es opcional; sin filtro trae todo lo que sigue "abierto" (ni cancelado
+  // ni ya completado), no un dump histórico de todo lo que pasó.
+  async getUpcomingAppointments(professionalId: number, status?: AppointmentStatus): Promise<Appointment[]> {
+    const professional = await this.professionalsService.findOne(professionalId);
+    const todayStr = localDateString(resolveTzOffsetHours(professional.phone));
+
+    const statuses = status
+      ? [status]
+      : [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED, AppointmentStatus.RECONFIRMED];
+
     return this.repo.find({
-      where: { professionalId, status: AppointmentStatus.PENDING },
+      where: { professionalId, date: MoreThanOrEqual(todayStr), status: In(statuses) },
       relations: ['client', 'service'],
       order: { date: 'ASC', startTime: 'ASC' },
     });
