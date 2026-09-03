@@ -41,6 +41,16 @@ function makeService(occupied: any[] = []) {
 }
 
 describe('AvailabilityService.getAvailableSlots() — estados que bloquean', () => {
+  // Fecha de "hoy" fijada para que la fecha consultada (2026-08-31) no quede en el
+  // pasado con el correr del tiempo real y corte antes de llegar al query (bug que
+  // este mismo test tuvo al escribirse el 2026-08-29 y quedar en el pasado el 2026-09-02).
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-30T12:00:00.000Z'));
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('incluye ARRIVED e IN_PROGRESS en el filtro de citas ocupadas', async () => {
     const { svc, qb } = makeService([]);
 

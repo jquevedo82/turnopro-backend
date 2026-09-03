@@ -79,6 +79,49 @@ describe('NotificationsService.notifyClientAppointmentCompleted() — registro r
   });
 });
 
+describe('NotificationsService.logNotification() — nunca debe tirar abajo la acción que la llamó', () => {
+  const originalFetch = global.fetch;
+  const originalBrevoKey = process.env.BREVO_API_KEY;
+  const service: any = { name: 'Consulta', durationMinutes: 30 };
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    process.env.BREVO_API_KEY = originalBrevoKey;
+    jest.restoreAllMocks();
+  });
+
+  it('bug real de producción (2026-09-02): si notifications_log.save() falla (ej. columna faltante), reservar un turno no debe devolver 500', async () => {
+    process.env.BREVO_API_KEY = 'fake-key';
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, text: async () => '' }) as any;
+
+    const logRepo = {
+      create: jest.fn((e) => e),
+      save:   jest.fn().mockRejectedValue(new Error("Unknown column 'status' in field list")),
+    };
+    const svc = new (NotificationsService as any)(logRepo);
+
+    // Antes del fix: logNotification() no atrapaba su propio error, y como el catch()
+    // de sendAppointmentConfirmation vuelve a llamar logNotification() en su rama de
+    // error, el segundo throw escapaba sin control — la promesa de este await rechazaba.
+    await expect(
+      svc.sendAppointmentConfirmation(appointment, client, professional, service),
+    ).resolves.toBeUndefined();
+  });
+
+  it('tampoco rompe cuando la falla ocurre en la rama catch (sendEmail también falló)', async () => {
+    global.fetch = jest.fn().mockRejectedValue(new Error('Network timeout')) as any;
+    const logRepo = {
+      create: jest.fn((e) => e),
+      save:   jest.fn().mockRejectedValue(new Error("Unknown column 'status' in field list")),
+    };
+    const svc = new (NotificationsService as any)(logRepo);
+
+    await expect(
+      svc.sendAppointmentConfirmation(appointment, client, professional, service),
+    ).resolves.toBeUndefined();
+  });
+});
+
 describe('NotificationsService — confirmación y recordatorio, mismo gap que completed', () => {
   const originalFetch = global.fetch;
 

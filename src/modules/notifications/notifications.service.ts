@@ -962,7 +962,17 @@ export class NotificationsService {
       .replace(/'/g, '&#x27;');
   }
 
-  /** Registra cada notificación enviada en la tabla notifications_log */
+  /**
+   * Registra cada notificación enviada en la tabla notifications_log.
+   * Nunca debe poder tirar abajo la acción que la llamó (reservar, confirmar,
+   * cancelar, etc.) — es un registro de auditoría best-effort, no una parte
+   * crítica del flujo. Bug real encontrado en producción (2026-09-02): esta
+   * función no tenía try/catch propio, así que un problema de esquema en
+   * notifications_log (ej. columnas status/error faltantes por una migración
+   * sin correr) hacía que CADA método de este archivo — los 20 call sites que
+   * llaman a logNotification(), incluido el que se dispara al reservar un
+   * turno — devolviera 500 al cliente aunque la cita ya se hubiera creado bien.
+   */
   private async logNotification(
     appointmentId: number,
     type:          string,
@@ -970,7 +980,11 @@ export class NotificationsService {
     status:        string = 'sent',
     error?:        string,
   ): Promise<void> {
-    await this.logRepo.save(this.logRepo.create({ appointmentId, type, event, status, error }));
+    try {
+      await this.logRepo.save(this.logRepo.create({ appointmentId, type, event, status, error }));
+    } catch (err) {
+      this.logger.error(`[logNotification] No se pudo registrar en notifications_log: ${err.message}`);
+    }
   }
 
   /** Template HTML de confirmación de cita. Para modificar el diseño del email: editar aquí */
